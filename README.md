@@ -648,7 +648,7 @@ no configuration.
 ## Security
 
 Modelled on the osquery agent's credentials, because the threat is the same
-shape. Full detail in [docs/protocol.md](docs/protocol.md).
+shape. Full detail in [docs/protocol.md](https://gitlab.rfni.dev/norsewind/glpi-erpnext-mods/-/wikis/glpi-netscan/protocol).
 
 - **Two-tier credentials.** A shared, scopable, revocable *enrollment secret*
   is exchanged once for a *per-scanner token*. The token is stored as a
