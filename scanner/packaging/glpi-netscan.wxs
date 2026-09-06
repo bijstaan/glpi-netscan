@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Windows installer for the scanner.
+
+  Written in the WiX v3 dialect and built with wixl, from GNOME's msitools.
+  wixl is LGPL, runs natively on Linux, and carries no licence gate — WiX v6 and
+  later require accepting the Open Source Maintenance Fee EULA and a fee above a
+  revenue threshold, and WiX only ever emits an MSI on Windows, so the whole
+  release could not be built in one place.
+
+  What this file does NOT do is as important as what it does. wixl supports a
+  subset of WiX: no CustomAction/@Directory, no SetProperty, no ServiceConfig,
+  no util:PermissionEx. Rather than approximate those with a pile of shell-outs
+  whose only error reporting is an exit code, everything after "lay down the
+  files and register the service" is one call into the scanner itself —
+  `glpi-netscan msi-install`. That code is ordinary Go: it reports real errors
+  and it is covered by tests.
+
+    msiexec /i glpi-netscan_0.2.0_amd64.msi /qn ^
+        SERVER=https://glpi.example.com ENROLLSECRET=<key>
+
+  Properties:
+    SERVER          GLPI base URL. Required to enrol.
+    ENROLLSECRET    enrollment key from Setup > Network scanning. Required to enrol.
+    CACERT          path on the target machine to a PEM bundle for a private CA
+    SCANNERNAME     name shown in GLPI; defaults to the machine's hostname
+    NOUPDATES       1 to pin this host to the installed version
+
+  Variables supplied by build-msi.sh:
+    Version      MSI ProductVersion — numeric only, e.g. 0.2.0
+    FullVersion  the scanner's own version string, e.g. 0.2.0-rc1
+    StageDir     directory holding glpi-netscan.exe
+
+  Version and FullVersion are separate on purpose. MSI's ProductVersion cannot
+  carry a prerelease suffix, but the versioned directory must be named exactly
+  what the binary reports: the updater compares the two, and a directory named
+  0.2.0 holding a binary calling itself 0.2.0-rc1 would make the scanner try to
+  "update" to the version it is already running — deleting, on Windows, the
+  directory it is executing from. msi-install checks this and says so.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="GLPI Netscan Scanner"
+           Manufacturer="Bijstaan"
+           Version="$(var.Version)"
+           UpgradeCode="0f3d6b18-5c92-4a77-9d61-8b4e2f70c5a1"
+           Language="1033">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="GLPI Netscan SNMP scanner"
+             Manufacturer="Bijstaan" />
+
+    <Media Id="1" Cabinet="netscan.cab" EmbedCab="yes" />
+
+    <!-- Any upgrade replaces the whole tree. The versioned directory exists to
+         give the self-updater somewhere to roll back to, not to keep old MSI
+         installs side by side. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of the GLPI Netscan scanner is already installed." />
+
+    <Condition Message="This installer must be run with administrative privileges: it registers a Windows service and writes under Program Files.">Privileged</Condition>
+
+    <!--
+      SERVER, ENROLLSECRET, CACERT, SCANNERNAME and NOUPDATES are deliberately
+      not declared. A public property needs no declaration to be settable on the
+      command line, an undeclared one formats as the empty string, and the
+      Property table has no way to express "declared but empty" — wixl rejects
+      Value="".
+
+      What they do need is to be listed in SecureCustomProperties, so they cross
+      into the elevated execute sequence. wixl accepts Secure="yes" and silently
+      discards it, and declaring SecureCustomProperties here collides with the
+      row MajorUpgrade generates and fails the build — so build-msi.sh extends
+      that row afterwards with msibuild, and asserts the result.
+    -->
+    <!-- Masks the key in a verbose install log. This is the MSI mechanism that
+         WiX's Hidden="yes" writes to; wixl has no such attribute, so the
+         underlying property is set directly. It is not a guarantee — see the
+         note on MsiInstall below. -->
+    <Property Id="MsiHiddenProperties" Value="ENROLLSECRET" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="GLPI Netscan">
+          <Directory Id="VersionsDir" Name="versions">
+            <Directory Id="VersionDir" Name="$(var.FullVersion)">
+
+              <Component Id="ScannerExe" Guid="7c1f9a26-3d84-4b0e-9f52-6a8d0e3b71c4" Win64="yes">
+                <File Id="scanner.exe"
+                      Name="glpi-netscan.exe"
+                      Source="$(var.StageDir)/glpi-netscan.exe"
+                      KeyPath="yes" />
+
+                <!--
+                  LocalService, not LocalSystem. The scanner sends SNMP and
+                  HTTPS and writes its own state; it needs no privilege. This is
+                  the Windows counterpart of the empty capability bounding set
+                  on the systemd unit.
+
+                  Start="demand" and no Start on ServiceControl: the service is
+                  repointed at `current`, given its failure actions and possibly
+                  enrolled by msi-install, and only then started and switched to
+                  automatic. A deployment that omitted the credentials leaves a
+                  registered, idle service rather than one restart-looping
+                  against a server it was never told about.
+
+                  Arguments here are a placeholder: the real command line is set
+                  by msi-install, because ServiceInstall derives the binary path
+                  from this component's key file — the *versioned* one — and
+                  offers no way to override it.
+                -->
+                <ServiceInstall Id="ScannerService"
+                                Name="GLPINetscan"
+                                DisplayName="GLPI Netscan scanner"
+                                Description="Scans network equipment over SNMP and reports inventory to GLPI."
+                                Type="ownProcess"
+                                Start="demand"
+                                ErrorControl="normal"
+                                Account="NT AUTHORITY\LocalService"
+                                Vital="yes" />
+
+                <ServiceControl Id="ScannerServiceControl"
+                                Name="GLPINetscan"
+                                Stop="both"
+                                Remove="uninstall"
+                                Wait="yes" />
+              </Component>
+
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!--
+      The optional flags.
+
+      wixl has no SetProperty, so these are type 51 property-setting custom
+      actions, which is what SetProperty compiles to anyway. NOUPDATES becomes a
+      bare flag, so unlike the value-taking options it cannot simply expand to
+      an empty string when unset.
+    -->
+    <CustomAction Id="SetNoUpdates" Property="NoUpdatesFlag" Value="--no-updates" />
+
+    <!--
+      Everything the installer cannot express, in one call.
+
+      FileKey rather than a directory-relative path: it binds to the file this
+      package installs, so the action cannot run a stale binary left by an
+      earlier version.
+
+      ExeCommand is a Formatted field, resolved while the execution script is
+      written and fixed into it, which is what lets a deferred action see
+      [ENROLLSECRET] at all. Consequence worth knowing: with verbose logging
+      (/l*v) the resolved command line can reach the log, so the key may be
+      recoverable despite MsiHiddenProperties. That is tolerable because of what
+      an enrollment key is — a shared, scopable, revocable credential that buys
+      exactly one thing, the right to obtain a per-scanner token. If a log leaks
+      one, revoke it in GLPI and it is dead; scanners that already enrolled keep
+      working on their own tokens.
+
+      The value-taking options are passed unconditionally: an empty [CACERT] or
+      [SCANNERNAME] expands to "" and the scanner treats that as unset.
+    -->
+    <CustomAction Id="MsiInstall"
+                  FileKey="scanner.exe"
+                  ExeCommand="msi-install --install-root &quot;[INSTALLFOLDER]&quot; --server &quot;[SERVER]&quot; --secret &quot;[ENROLLSECRET]&quot; --ca-cert &quot;[CACERT]&quot; --name &quot;[SCANNERNAME]&quot; [NoUpdatesFlag]"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <CustomAction Id="MsiUninstall"
+                  FileKey="scanner.exe"
+                  ExeCommand="msi-uninstall --install-root &quot;[INSTALLFOLDER]&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SetNoUpdates" Before="InstallInitialize">NOUPDATES = "1"</Custom>
+
+      <!-- After InstallServices: the service must exist before its binary path
+           and failure actions can be corrected. -->
+      <Custom Action="MsiInstall" After="InstallServices">NOT REMOVE</Custom>
+
+      <!-- Before RemoveFiles, while the binary that does the work is still on
+           disk. -->
+      <Custom Action="MsiUninstall" Before="RemoveFiles">REMOVE="ALL"</Custom>
+    </InstallExecuteSequence>
+
+    <Feature Id="Main" Title="GLPI Netscan Scanner" Level="1">
+      <ComponentRef Id="ScannerExe" />
+    </Feature>
+  </Product>
+</Wix>

@@ -1,0 +1,14 @@
+{
+  "name": "MikroTik RouterOS wireless (MIKROTIK-MIB)",
+  "priority": 50,
+  "match": {
+    "sysobjectid_prefix": [
+      "1.3.6.1.4.1.14988"
+    ]
+  },
+  "_comment": "A standalone AP like UniFi. mtxrWlApTable, entry 1.3.6.1.4.1.14988.1.1.1.3.1, is the AP-mode table — one row per wireless interface — carrying the SSID it is broadcasting and its client count. Not to be confused with mtxrWlStatTable (.1.1.1.1), which is the station-mode table for a MikroTik acting as a *client*, and would report the network it is joined to rather than the one it serves.",
+  "wireless": {
+    "ssid": "1.3.6.1.4.1.14988.1.1.1.3.1.4",
+    "ssid_clients": "1.3.6.1.4.1.14988.1.1.1.3.1.6"
+  }
+}

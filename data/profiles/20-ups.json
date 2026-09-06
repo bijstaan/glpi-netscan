@@ -1,0 +1,13 @@
+{
+  "name": "UPS (UPS-MIB, RFC 1628)",
+  "priority": 20,
+  "match": {},
+  "_comment": "Applies to every device; UPS-MIB simply returns nothing on anything that is not a UPS. Identity OIDs list the UPS-MIB source first and fall back to the base ENTITY-MIB one after a '|', so this never blanks a switch's details. Live battery state (charge, runtime, load) is deliberately not collected: GLPI's inventory schema has nowhere to put it, and it is monitoring data rather than inventory.",
+
+  "device": {
+    "manufacturer": "1.3.6.1.2.1.33.1.1.1.0|1.3.6.1.2.1.47.1.1.1.1.12.1",
+    "model":        "1.3.6.1.2.1.33.1.1.2.0|1.3.6.1.2.1.47.1.1.1.1.13.1",
+    "firmware":     "1.3.6.1.2.1.33.1.1.3.0|1.3.6.1.2.1.47.1.1.1.1.9.1",
+    "name":         "1.3.6.1.2.1.33.1.1.5.0|1.3.6.1.2.1.1.5.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "Ubiquiti UniFi access points (UBNT-UniFi-MIB)",
+  "priority": 50,
+  "match": {
+    "sysobjectid_prefix": [
+      "1.3.6.1.4.1.41112"
+    ]
+  },
+  "_comment": "A standalone access point, not a controller: the device being scanned IS the AP, so there is no AP table and no ap_* columns. What it publishes is unifiVapTable — the virtual APs it is broadcasting, one row per SSID per radio — which is exactly the ssid/ssid_clients shape. The same collector handles both without special-casing, which is the point of keeping the OIDs in profiles: a controller and a standalone AP differ in what they answer, not in how they are read.",
+  "wireless": {
+    "ssid": "1.3.6.1.4.1.41112.1.6.1.2.1.6",
+    "ssid_clients": "1.3.6.1.4.1.41112.1.6.1.2.1.8"
+  }
+}

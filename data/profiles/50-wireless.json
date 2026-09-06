@@ -1,0 +1,31 @@
+{
+  "name": "Cisco WLC (AIRESPACE-WIRELESS-MIB)",
+  "priority": 50,
+  "match": {
+    "sysobjectid_prefix": [
+      "1.3.6.1.4.1.9",
+      "1.3.6.1.4.1.14179"
+    ]
+  },
+  "_comment": "Matched on the Cisco and Airespace enterprise roots rather than on specific models. A Catalyst 9800 reports a Cisco chassis sysObjectID (1.3.6.1.4.1.9.1.x) and not an Airespace one, so a per-model prefix list is whack-a-mole that silently stops working on the next hardware refresh. Applying to all Cisco gear is safe because the detection is behavioural: the scanner walks the AP table and collects nothing if it does not answer, which costs one walk on a switch and is the same bargain the printer pack makes. Access points behind a controller are separate assets, not components: each is a serial-numbered box that gets RMA'd, moved and replaced on its own, and most cannot be scanned directly because a CAPWAP-tunnelled AP has no reachable management address. The controller is the only place they exist. Every OID below was read out of AIRESPACE-WIRELESS-MIB rather than from memory, and anchored on bsnAPDot3MacAddress = .2.2.1.1.1, which is the documented index column. bsnAPTable is indexed by that same MAC as six decimal arcs, so the scanner recovers each AP's address from the index itself — which is what lets the switch the AP is plugged into wire its port to the real asset instead of an Unmanaged placeholder. ap_mac prefers bsnAPEthernetMacAddress (.33) over the index, because on newer controllers the base radio MAC and the Ethernet MAC differ and it is the Ethernet one the switch learns. bsnAPIfLoadNumOfClients is indexed by (AP, radio slot) rather than by AP, so it is declared as radio_clients and the scanner sums it back onto each AP by longest index prefix. That is why there is no ap_clients column here: the number genuinely lives one index level down, and reading it as an AP column would attribute one radio's clients to the whole access point.",
+  "wireless": {
+    "ap_name": "1.3.6.1.4.1.14179.2.2.1.1.3",
+    "ap_model": "1.3.6.1.4.1.14179.2.2.1.1.16",
+    "ap_serial": "1.3.6.1.4.1.14179.2.2.1.1.17",
+    "ap_mac": "1.3.6.1.4.1.14179.2.2.1.1.33",
+    "ap_ip": "1.3.6.1.4.1.14179.2.2.1.1.19",
+    "ap_location": "1.3.6.1.4.1.14179.2.2.1.1.4",
+    "ap_status": "1.3.6.1.4.1.14179.2.2.1.1.6",
+    "ap_firmware": "1.3.6.1.4.1.14179.2.2.1.1.8",
+    "ap_radios": "1.3.6.1.4.1.14179.2.2.1.1.2",
+    "ssid": "1.3.6.1.4.1.14179.2.1.1.1.2",
+    "ssid_clients": "1.3.6.1.4.1.14179.2.1.1.1.38",
+    "ap_status_map": "1=associated,2=disassociated,3=downloading,4=downgrade",
+    "radio_band": "1.3.6.1.4.1.14179.2.2.2.1.2",
+    "radio_channel": "1.3.6.1.4.1.14179.2.2.2.1.4",
+    "radio_status": "1.3.6.1.4.1.14179.2.2.2.1.12",
+    "radio_clients": "1.3.6.1.4.1.14179.2.2.13.1.4",
+    "radio_band_map": "1=dot11b/g/n (2.4GHz),2=dot11a/n/ac (5GHz),3=uwb,4=dot11ax (6GHz)",
+    "radio_status_map": "1=up,2=down"
+  }
+}

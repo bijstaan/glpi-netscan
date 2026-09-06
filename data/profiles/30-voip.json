@@ -1,0 +1,50 @@
+[
+  {
+    "_comment": "VoIP handsets. Every enterprise number here was checked against the IANA registry rather than recalled — two I had previously left out as unverified turned out to be correct (Polycom 13885, Grandstream 42397), and one I might have guessed (Snom) is 7526 while 2338 is an unrelated company. itemtype is forced because a desk phone contains a two-port switch and so sets the sysServices datalink bit, which would otherwise classify it as network equipment. Identity comes from ENTITY-MIB, which is where handsets generally put it; phones expose very little else over SNMP.",
+    "name": "Yealink phone",
+    "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.37459"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Yealink" }
+  },
+  { "name": "Polycom phone", "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.13885"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Polycom" } },
+  { "name": "Grandstream phone", "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.42397"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Grandstream" } },
+  { "name": "Snom phone", "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.7526"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Snom" } },
+  { "name": "Mitel phone", "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.1027"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Mitel" } },
+  { "name": "Fanvil phone", "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.59440"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Fanvil" } },
+  { "name": "Gigaset phone", "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.32775"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Gigaset" } },
+  { "name": "Avaya phone", "priority": 45,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.6889"] },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Avaya" } },
+
+  {
+    "_comment": "Cisco IP phones share Cisco's enterprise arc with every switch and router they make, so the sysObjectID prefix alone cannot separate them — the sysDescr regex is what does. Kept at a higher priority than the generic Cisco vendor entry so it wins.",
+    "name": "Cisco IP phone",
+    "priority": 46,
+    "match": {
+      "sysobjectid_prefix": ["1.3.6.1.4.1.9"],
+      "sysdescr_regex": "(?i)(IP Phone|SPA[0-9]{3}|Cisco.*Phone)"
+    },
+    "itemtype": "Phone",
+    "device": { "manufacturer": "=Cisco" }
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "name": "Aruba / HPE mobility controllers (WLSX-WLAN-MIB)",
+  "priority": 50,
+  "match": {
+    "sysobjectid_prefix": [
+      "1.3.6.1.4.1.14823"
+    ]
+  },
+  "_comment": "wlsxWlanAPTable, entry 1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1, indexed by the AP's base MAC as six arcs — so the scanner recovers each AP's address from the index, the same way it does on Cisco. Columns read out of the published MIB, not recalled. Clients are per radio here too (wlanAPRadioNumAssociatedClients, indexed by AP and radio number), so they are declared as radio_clients and summed back onto the AP. The ESSID table is indexed by the ESSID string itself; wlanESSID is the first column of an Entry the published MIB does not list separately, which is why it is .8.1.1 and not .8.1.",
+  "wireless": {
+    "ap_name": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.3",
+    "ap_model": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.13",
+    "ap_serial": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.6",
+    "ap_ip": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.2",
+    "ap_location": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.14",
+    "ap_status": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.19",
+    "ap_firmware": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.34",
+    "ap_radios": "1.3.6.1.4.1.14823.2.2.1.5.2.1.4.1.9",
+    "ap_status_map": "1=up,2=down",
+    "radio_channel": "1.3.6.1.4.1.14823.2.2.1.5.2.1.5.1.3",
+    "radio_clients": "1.3.6.1.4.1.14823.2.2.1.5.2.1.5.1.7",
+    "ssid": "1.3.6.1.4.1.14823.2.2.1.5.2.1.8.1.1",
+    "ssid_clients": "1.3.6.1.4.1.14823.2.2.1.5.2.1.8.1.2"
+  }
+}

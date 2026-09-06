@@ -1,0 +1,47 @@
+{
+  "name": "Base (standard MIBs)",
+  "priority": 0,
+  "match": {},
+  "_comment": "Always applies. Covers the MIBs essentially every managed device implements: SNMPv2-MIB (system group), IF-MIB including the 64-bit ifXTable, IP-MIB (addresses), ENTITY-MIB (physical components), HOST-RESOURCES-MIB (memory) and EtherLike-MIB (duplex). Topology \u2014 bridge forwarding table, VLAN membership, LLDP/CDP neighbours \u2014 uses standard OIDs built into the scanner; override them here under 'topology' only for a device that puts them somewhere non-standard. A field may list several OIDs separated by '|', tried in order until one answers.",
+  "device": {
+    "name": "1.3.6.1.2.1.1.5.0",
+    "description": "1.3.6.1.2.1.1.1.0",
+    "contact": "1.3.6.1.2.1.1.4.0",
+    "location": "1.3.6.1.2.1.1.6.0",
+    "uptime": "1.3.6.1.2.1.1.3.0",
+    "serial": "1.3.6.1.2.1.47.1.1.1.1.11.1",
+    "model": "1.3.6.1.2.1.47.1.1.1.1.13.1",
+    "manufacturer": "1.3.6.1.2.1.47.1.1.1.1.12.1",
+    "firmware": "1.3.6.1.2.1.47.1.1.1.1.9.1",
+    "assettag": "1.3.6.1.2.1.47.1.1.1.1.15.1",
+    "ram": "1.3.6.1.2.1.25.2.2.0"
+  },
+  "ports": {
+    "ifdescr": "1.3.6.1.2.1.2.2.1.2",
+    "iftype": "1.3.6.1.2.1.2.2.1.3",
+    "ifmtu": "1.3.6.1.2.1.2.2.1.4",
+    "ifspeed": "1.3.6.1.2.1.2.2.1.5",
+    "mac": "1.3.6.1.2.1.2.2.1.6",
+    "ifinternalstatus": "1.3.6.1.2.1.2.2.1.7",
+    "ifstatus": "1.3.6.1.2.1.2.2.1.8",
+    "iflastchange": "1.3.6.1.2.1.2.2.1.9",
+    "ifinbytes": "1.3.6.1.2.1.2.2.1.10",
+    "ifinerrors": "1.3.6.1.2.1.2.2.1.14",
+    "ifoutbytes": "1.3.6.1.2.1.2.2.1.16",
+    "ifouterrors": "1.3.6.1.2.1.2.2.1.20",
+    "ifname": "1.3.6.1.2.1.31.1.1.1.1",
+    "ifalias": "1.3.6.1.2.1.31.1.1.1.18",
+    "ifportduplex": "1.3.6.1.2.1.10.7.2.1.19"
+  },
+  "components": {
+    "description": "1.3.6.1.2.1.47.1.1.1.1.2",
+    "contained_index": "1.3.6.1.2.1.47.1.1.1.1.4",
+    "name": "1.3.6.1.2.1.47.1.1.1.1.7",
+    "firmware": "1.3.6.1.2.1.47.1.1.1.1.9",
+    "serial": "1.3.6.1.2.1.47.1.1.1.1.11",
+    "manufacturer": "1.3.6.1.2.1.47.1.1.1.1.12",
+    "model": "1.3.6.1.2.1.47.1.1.1.1.13",
+    "fru": "1.3.6.1.2.1.47.1.1.1.1.16"
+  },
+  "pagecounters": {}
+}

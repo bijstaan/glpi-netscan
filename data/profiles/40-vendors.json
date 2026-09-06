@@ -1,0 +1,422 @@
+[
+  {
+    "_comment": "Vendor identification by IANA enterprise number, the arc under 1.3.6.1.4.1 in sysObjectID. These set the manufacturer as a literal (leading '=') because many devices expose no manufacturer OID while their sysObjectID names the vendor unambiguously. Identification only: no data collection depends on this list being complete, and it is extended from Administration > Network scanning > OID profiles without touching the plugin.",
+    "name": "Cisco",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.9"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Cisco"
+    }
+  },
+  {
+    "name": "Hewlett-Packard",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.11"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Hewlett-Packard"
+    }
+  },
+  {
+    "name": "HPE Aruba Networking",
+    "priority": 41,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.14823",
+        "1.3.6.1.4.1.47196"
+      ]
+    },
+    "device": {
+      "manufacturer": "=HPE Aruba Networking"
+    }
+  },
+  {
+    "name": "Juniper Networks",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.2636"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Juniper Networks"
+    }
+  },
+  {
+    "name": "Arista Networks",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.30065"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Arista Networks"
+    }
+  },
+  {
+    "name": "Extreme Networks",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.1916"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Extreme Networks"
+    }
+  },
+  {
+    "name": "Dell",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.674",
+        "1.3.6.1.4.1.6027"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Dell"
+    }
+  },
+  {
+    "name": "Huawei",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.2011"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Huawei"
+    }
+  },
+  {
+    "name": "MikroTik",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.14988"
+      ]
+    },
+    "device": {
+      "manufacturer": "=MikroTik"
+    }
+  },
+  {
+    "name": "Ubiquiti Networks",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.41112"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Ubiquiti Networks"
+    }
+  },
+  {
+    "name": "Brocade",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.1588",
+        "1.3.6.1.4.1.1991"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Brocade"
+    }
+  },
+  {
+    "name": "Alcatel-Lucent Enterprise",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.6486"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Alcatel-Lucent Enterprise"
+    }
+  },
+  {
+    "name": "NETGEAR",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.4526"
+      ]
+    },
+    "device": {
+      "manufacturer": "=NETGEAR"
+    }
+  },
+  {
+    "name": "TP-Link",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.11863"
+      ]
+    },
+    "device": {
+      "manufacturer": "=TP-Link"
+    }
+  },
+  {
+    "name": "D-Link",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.171"
+      ]
+    },
+    "device": {
+      "manufacturer": "=D-Link"
+    }
+  },
+  {
+    "name": "Zyxel",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.890"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Zyxel"
+    }
+  },
+  {
+    "name": "Allied Telesis",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.207"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Allied Telesis"
+    }
+  },
+  {
+    "name": "3Com",
+    "priority": 40,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.43"
+      ]
+    },
+    "device": {
+      "manufacturer": "=3Com"
+    }
+  },
+  {
+    "name": "Fortinet",
+    "priority": 42,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.12356"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Fortinet"
+    }
+  },
+  {
+    "name": "Palo Alto Networks",
+    "priority": 42,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.25461"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Palo Alto Networks"
+    }
+  },
+  {
+    "name": "SonicWall",
+    "priority": 42,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.8741"
+      ]
+    },
+    "device": {
+      "manufacturer": "=SonicWall"
+    }
+  },
+  {
+    "name": "Check Point",
+    "priority": 42,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.2620"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Check Point"
+    }
+  },
+  {
+    "name": "F5 Networks",
+    "priority": 42,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.3375"
+      ]
+    },
+    "device": {
+      "manufacturer": "=F5 Networks"
+    }
+  },
+  {
+    "_comment": "UPS and power. itemtype is forced to Power, which GLPI files as an Unmanaged asset \u2014 it has no dedicated UPS main asset.",
+    "name": "APC",
+    "priority": 43,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.318"
+      ]
+    },
+    "itemtype": "Power",
+    "device": {
+      "manufacturer": "=APC"
+    }
+  },
+  {
+    "name": "Eaton",
+    "priority": 43,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.534"
+      ]
+    },
+    "itemtype": "Power",
+    "device": {
+      "manufacturer": "=Eaton"
+    }
+  },
+  {
+    "name": "CyberPower",
+    "priority": 43,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.3808"
+      ]
+    },
+    "itemtype": "Power",
+    "device": {
+      "manufacturer": "=CyberPower"
+    }
+  },
+  {
+    "name": "Raritan",
+    "priority": 43,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.13742"
+      ]
+    },
+    "itemtype": "Power",
+    "device": {
+      "manufacturer": "=Raritan"
+    }
+  },
+  {
+    "_comment": "Printers. Marker-counter detection already classifies these; the vendor name is the addition.",
+    "name": "Xerox",
+    "priority": 44,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.253"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Xerox"
+    }
+  },
+  {
+    "name": "Lexmark",
+    "priority": 44,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.641"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Lexmark"
+    }
+  },
+  {
+    "name": "Ricoh",
+    "priority": 44,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.367"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Ricoh"
+    }
+  },
+  {
+    "name": "Kyocera",
+    "priority": 44,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.1347"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Kyocera"
+    }
+  },
+  {
+    "name": "Brother",
+    "priority": 44,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.2435"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Brother"
+    }
+  },
+  {
+    "name": "Epson",
+    "priority": 44,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.1248"
+      ]
+    },
+    "device": {
+      "manufacturer": "=Epson"
+    }
+  },
+  {
+    "_comment": "Hosts running a general-purpose SNMP daemon. Left as the default classification: sysServices decides, and these are usually servers rather than network gear.",
+    "name": "Net-SNMP host",
+    "priority": 46,
+    "match": {
+      "sysobjectid_prefix": [
+        "1.3.6.1.4.1.8072",
+        "1.3.6.1.4.1.2021"
+      ]
+    },
+    "device": {
+      "manufacturer": ""
+    }
+  }
+]

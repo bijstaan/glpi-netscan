@@ -1,0 +1,121 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Bijstaan */
+/*
+ * Plugin-wide theme conformance — the plugin's first stylesheet, loaded on
+ * every page via add_css. Everything is scoped under
+ * :root[data-glpi-theme-dark="1"] and the plugin's own containers, so the
+ * light theme is untouched by construction.
+ *
+ * Every surface the plugin ships carries the `glpinetscan-surface` marker
+ * class: the settings page wrapper, the scanner/target/OID-profile form
+ * pages (core-rendered — without the marker no scoped rule can reach
+ * them), and each asset tab's top-level cards/alerts (the control tab has
+ * several early-return branches, so the marker sits on each top-level
+ * element rather than one wrapper).
+ *
+ * Numbers are live-measured on this install's auror_dark palette (body
+ * #1f2936, --tblr-muted #757d91, --tblr-secondary-color
+ * rgba(31,41,55,.75)). Trust the
+ * audit's computed output over any constant quoted here.
+ */
+
+/*
+ * Muted / helper text. Core's `.text-muted` carries !important, so the
+ * VARIABLE is redefined in scope rather than the property (a property
+ * override is a silent no-op — this file replaces exactly such a dead
+ * rule that lived inline on the settings page). `.form-text` reads
+ * --tblr-secondary-color, which auror_dark leaves at the body background
+ * with alpha (1.05:1) — both variables together, same value.
+ * `transparent 10%` measured ~5:1 on body and card; 28% under-shoots.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface {
+    --tblr-muted: color-mix(in srgb, var(--tblr-body-color), transparent 10%);
+    --tblr-secondary-color: color-mix(in srgb, var(--tblr-body-color), transparent 10%);
+}
+
+/*
+ * Inline code (trap OIDs, varbinds). Core's --tblr-code-color resolves
+ * its dark arm to a near-surface grey: 2.12:1. Core-wide gap (flagged),
+ * scoped fix here.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface code {
+    color: var(--tblr-body-color);
+}
+
+/*
+ * Solid badges: on auror_dark core's .badge inherits the ambient page
+ * text colour instead of a contrasting one (the near-identical trap).
+ * Black clears 6.9:1+ on the warning/orange/secondary/success faces
+ * (white fails all of them — including the `text-white` the stale badge
+ * carries, hence the matching !important); white clears 4.67:1 on
+ * red/danger.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .badge.bg-warning,
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .badge.bg-orange,
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .badge.bg-secondary,
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .badge.bg-success,
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .badge.bg-green {
+    color: #000 !important;
+}
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .badge.bg-danger,
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .badge.bg-red {
+    color: #fff !important;
+}
+
+/*
+ * Solid buttons: same ambient-text gap — "Create secret" (btn-success)
+ * measured 1.15:1. Variable redefinition keeps hover/focus consistent.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .btn-success {
+    --tblr-btn-color: #000;
+    --tblr-btn-hover-color: #000;
+    --tblr-btn-active-color: #000;
+}
+/*
+ * .btn-primary needs NO fix: auror_dark's --tblr-primary is a yellow
+ * (#fec95c) and core already pairs it with dark-slate button text
+ * (#1e293b, 9.5:1). A blanket white-text "fix" here measured 1.53:1 —
+ * measure before overriding.
+ */
+
+/*
+ * Outline buttons rest in their hue on the dark surface (--tblr-red
+ * 2.95:1 — the port "Shut down" button). Lift the resting text only.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .btn-outline-danger {
+    --tblr-btn-color: color-mix(in srgb, var(--tblr-red), white 40%);
+}
+
+/*
+ * Inactive .nav-link (core tab bar inside the wrapped form pages) reads
+ * --tblr-gray-500 on the dark body — same core-wide gap glpikedb scoped
+ * this exact fix for.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .nav-link {
+    color: color-mix(in srgb, var(--tblr-body-color), transparent 12%);
+}
+
+/*
+ * The entity toggle ("Child entities") on core's form header: the label
+ * sits inside core's `.is_recursive-toggle` badge (a dark-slate face on
+ * auror_dark) and core dims the inactive side to opacity .7 — the ambient
+ * label colour lands at 2.8–4.1:1 through that dim. Core-wide gap
+ * (flagged). Near-white text clears 4.76:1 THROUGH the .7 dim while the
+ * opacity still carries the checked/unchecked distinction.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .is_recursive-toggle .form-check-label {
+    color: color-mix(in srgb, var(--tblr-body-color), white 85%);
+}
+
+/*
+ * Select2 multiselect chip remove glyph (the target form's OID-profile /
+ * credential pickers): core's own dark skin sets it to --tblr-dark six
+ * classes deep, assuming a light chip — on auror_dark chip and glyph are
+ * variants of the same near-navy, 1.09:1. Same fix glpiservice ships,
+ * matched at core's specificity rather than out-specified.
+ */
+:root[data-glpi-theme-dark="1"] .glpinetscan-surface .select2-container
+  .select2-selection.select2-selection--multiple .select2-selection__rendered
+  .select2-selection__choice .select2-selection__choice__remove {
+    color: color-mix(in srgb, var(--tblr-body-color), transparent 5%);
+}

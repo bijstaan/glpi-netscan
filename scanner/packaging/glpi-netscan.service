@@ -1,0 +1,62 @@
+[Unit]
+Description=GLPI Netscan SNMP scanner
+Documentation=https://github.com/bijstaan/glpi-netscan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Rollback guard for a staged update — see preflight.sh. It runs before every
+# start, including the restarts systemd performs after a failure, which is
+# exactly what lets it catch a version that cannot start at all.
+ExecStartPre=/opt/glpi-netscan/preflight.sh
+
+# Started through the `current` symlink rather than a fixed path: that symlink
+# is what an update flips, and what preflight.sh points back on a rollback.
+ExecStart=/opt/glpi-netscan/current/glpi-netscan -config /etc/glpi-netscan/agent.conf
+
+# The scanner exits deliberately after staging an update so it comes back on the
+# new version, so a restart is a normal outcome and not only a fault.
+Restart=always
+RestartSec=15
+
+# A dedicated system user rather than DynamicUser=yes.
+#
+# DynamicUser would be the better default for a daemon that owns nothing, and it
+# is what this unit used before self-update: the scanner needs no privilege, it
+# only makes outbound SNMP and HTTPS connections. But a self-updating agent does
+# own something — a versioned install tree it must be able to write and then
+# execute from — and a transient UID with no persistent writable install root
+# cannot hold that. The privilege given back is a fixed unprivileged UID; every
+# other restriction below is unchanged.
+User=glpi-netscan
+Group=glpi-netscan
+
+StateDirectory=glpi-netscan
+ConfigurationDirectory=glpi-netscan
+
+# The install tree is the one place the scanner writes outside its state
+# directory. ProtectSystem=strict makes everything else read-only, including
+# /usr, so an update cannot touch anything but its own versions.
+ReadWritePaths=/opt/glpi-netscan
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

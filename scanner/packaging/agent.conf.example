@@ -1,0 +1,48 @@
+# GLPI Netscan agent configuration.
+#
+# Normally you do not write this by hand: `glpi-netscan install --server ...
+# --secret ...` writes it and enrolls in one step, and the settings page in
+# GLPI generates that command for you with the right server and key already
+# filled in. This file documents what it produces.
+#
+# The scanner holds no scan policy: ranges, SNMP credentials and OID profiles
+# all come from GLPI. This file only says which GLPI to talk to and how to
+# prove who we are.
+
+# GLPI root URL. Must be https — the job response carries decrypted SNMP
+# community strings and v3 passphrases.
+server = https://glpi.example.com
+
+# Presented once, at first start, in exchange for this scanner's own token.
+# Create it under Setup > Network scanning.
+# Safe to leave in place: it is only used when no token is stored yet, and
+# again if GLPI ever revokes this scanner.
+enroll_secret = replace-me
+
+# Internal CA, if GLPI uses a private certificate.
+#ca_file = /etc/glpi-netscan/ca.pem
+
+# Where the scanner's token is kept (mode 0600). Defaults to
+# /var/lib/glpi-netscan on Linux, which the systemd unit provisions, and
+# %ProgramData%\GLPINetscan\state on Windows.
+#state_dir = /var/lib/glpi-netscan
+
+# Name shown in GLPI. Defaults to the system hostname.
+#name = branch-office-scanner
+
+# Where self-update installs new versions: `versions/<version>/glpi-netscan`
+# with a `current` symlink the service unit starts from. Created by
+# install-linux.sh or install-windows.ps1. Defaults to /opt/glpi-netscan on
+# Linux and %ProgramFiles%\GLPI Netscan on Windows. A scanner without this
+# tree cannot self-update — the
+# updater refuses rather than replacing the running binary in place, which
+# would leave no way back from a bad release.
+#install_root = /opt/glpi-netscan
+
+# Pin this host to the version it is running, whatever GLPI offers.
+#
+# Defaults to on, unlike the switch in GLPI which defaults to off — so nothing
+# updates until an operator enables it there. This is for the individual
+# machine that must not move: an appliance under change control, or a scanner
+# in the middle of an incident.
+#updates_enabled = false

@@ -1,0 +1,104 @@
+[
+  {
+    "_comment": "APC UPS via PowerNet. The standard UPS-MIB already covers battery and line state on these units, so this profile only adds the identity fields PowerNet reports better — notably the serial number, which UPS-MIB has no object for at all. OIDs verified against PowerNet-MIB.",
+    "name": "APC UPS (PowerNet)",
+    "priority": 50,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.318"] },
+    "device": {
+      "serial": "1.3.6.1.4.1.318.1.1.1.1.2.3.0|1.3.6.1.2.1.47.1.1.1.1.11.1",
+      "model": "1.3.6.1.4.1.318.1.1.1.1.1.1.0|1.3.6.1.2.1.47.1.1.1.1.13.1",
+      "firmware": "1.3.6.1.4.1.318.1.1.1.1.2.1.0|1.3.6.1.2.1.47.1.1.1.1.9.1"
+    },
+    "power": {
+      "battery_replace": "1.3.6.1.4.1.318.1.1.1.2.2.4.0"
+    }
+  },
+
+  {
+    "_comment": "APC Rack PDU (rPDU2). There is no standard PDU MIB, so everything here is vendor-specific. The switched-outlet status table is under .26.9.2 — .26.9.4 is the separate metered-outlet table, and the two differ by a single arc. Currents are reported in tenths of an amp, hence the '*0.1' scale suffixes. itemtype is forced because a rack strip answers no battery group and would otherwise not be recognised as a power device at all.",
+    "name": "APC Rack PDU (rPDU2)",
+    "priority": 51,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.318.1.3.27", "1.3.6.1.4.1.318.1.3.31"] },
+    "itemtype": "Power",
+    "device": {
+      "serial": "1.3.6.1.4.1.318.1.1.26.2.1.9.1|1.3.6.1.2.1.47.1.1.1.1.11.1",
+      "model": "1.3.6.1.4.1.318.1.1.26.2.1.8.1|1.3.6.1.2.1.47.1.1.1.1.13.1",
+      "firmware": "1.3.6.1.4.1.318.1.1.26.2.1.6.1|1.3.6.1.2.1.47.1.1.1.1.9.1"
+    },
+    "power": {
+      "outlet_name": "1.3.6.1.4.1.318.1.1.26.9.2.3.1.3|1.3.6.1.4.1.318.1.1.26.9.4.3.1.3",
+      "outlet_state": "1.3.6.1.4.1.318.1.1.26.9.2.3.1.5",
+      "outlet_current": "1.3.6.1.4.1.318.1.1.26.9.4.3.1.6*0.1",
+
+      "input_voltage": "1.3.6.1.4.1.318.1.1.26.6.3.1.6",
+      "input_current": "1.3.6.1.4.1.318.1.1.26.6.3.1.5*0.1",
+
+      "battery_status": "",
+      "battery_charge": "",
+      "battery_runtime": "",
+      "battery_voltage": "",
+      "battery_current": "",
+      "battery_temp": "",
+      "seconds_on_battery": "",
+      "output_source": "",
+      "output_frequency": "",
+      "output_voltage": "",
+      "output_current": "",
+      "output_power": "",
+      "output_load": "",
+      "alarms_present": "",
+      "alarm_descr": ""
+    }
+  },
+
+  {
+    "_comment": "Eaton UPS via XUPS. Verified against XUPS-MIB. Battery runtime is in seconds here, unlike UPS-MIB's minutes, hence the scale.",
+    "name": "Eaton UPS (XUPS)",
+    "priority": 50,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.534"] },
+    "itemtype": "Power",
+    "device": {
+      "serial": "1.3.6.1.4.1.534.1.1.6.0|1.3.6.1.2.1.47.1.1.1.1.11.1",
+      "model": "1.3.6.1.4.1.534.1.1.2.0|1.3.6.1.2.1.33.1.1.2.0",
+      "firmware": "1.3.6.1.4.1.534.1.1.3.0"
+    },
+    "power": {
+      "battery_runtime": "1.3.6.1.4.1.534.1.2.1.0*0.0166667|1.3.6.1.2.1.33.1.2.3.0",
+      "battery_charge": "1.3.6.1.4.1.534.1.2.4.0|1.3.6.1.2.1.33.1.2.4.0",
+      "battery_voltage": "1.3.6.1.4.1.534.1.2.2.0|1.3.6.1.2.1.33.1.2.5.0*0.1"
+    }
+  },
+
+  {
+    "_comment": "ServerTech Sentry3 rack PDU. Outlet load is reported in hundredths of an amp on this line.",
+    "name": "ServerTech Sentry3 PDU",
+    "priority": 51,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.1718.3"] },
+    "itemtype": "Power",
+    "power": {
+      "outlet_name": "1.3.6.1.4.1.1718.3.2.3.1.3",
+      "outlet_state": "1.3.6.1.4.1.1718.3.2.3.1.5",
+      "outlet_current": "1.3.6.1.4.1.1718.3.2.3.1.7*0.01",
+      "battery_status": "",
+      "alarm_descr": ""
+    }
+  },
+
+  {
+    "_comment": "Raritan PX rack PDU. Outlet switching state lives in the control table, and per-outlet measurements are in the sensor table, which is indexed by outlet and sensor type rather than by outlet alone — so only name and state are mapped here.",
+    "name": "Raritan PX PDU",
+    "priority": 51,
+    "match": { "sysobjectid_prefix": ["1.3.6.1.4.1.13742.6"] },
+    "itemtype": "Power",
+    "device": {
+      "serial": "1.3.6.1.4.1.13742.6.3.2.1.1.4.1|1.3.6.1.2.1.47.1.1.1.1.11.1",
+      "model": "1.3.6.1.4.1.13742.6.3.2.1.1.3.1|1.3.6.1.2.1.47.1.1.1.1.13.1"
+    },
+    "power": {
+      "outlet_name": "1.3.6.1.4.1.13742.6.3.5.3.1.3|1.3.6.1.4.1.13742.6.3.5.3.1.2",
+      "outlet_state": "1.3.6.1.4.1.13742.6.4.1.2.1.3",
+      "battery_status": "",
+      "alarm_descr": ""
+    }
+  }
+]
