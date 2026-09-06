@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -252,7 +253,22 @@ func (u *Updater) rejectedVersion() string {
 	return rejected.Version
 }
 
+// safeVersion constrains a version string before it is used as a path segment.
+//
+// The version arrives in the server's update offer, and apply joins it into
+// versions/<v> (and versions/<v>.staging). A compromised — or simply buggy —
+// server must not be able to stage a tree outside the install root by
+// publishing a release called "../../etc". filepath.Base is not enough on its
+// own here: it leaves ".." intact, so the pattern is anchored to a leading
+// alphanumeric instead, which rejects ".", ".." and every name that starts by
+// climbing.
+var safeVersion = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$`)
+
 func (u *Updater) apply(pkg client.Package) error {
+	if !safeVersion.MatchString(pkg.Version) {
+		return fmt.Errorf("refusing a package with an unusable version %q", pkg.Version)
+	}
+
 	// Refuse rather than improvise. A scanner dropped in at /usr/bin by hand
 	// has nowhere to put a second version and no symlink to flip, and a
 	// half-applied update there would replace a working binary with no way
