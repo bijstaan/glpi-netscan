@@ -8,6 +8,7 @@ use GlpiPlugin\Glpinetscan\OidProfile;
 use GlpiPlugin\Glpinetscan\Scanner;
 use GlpiPlugin\Glpinetscan\Secret;
 use GlpiPlugin\Glpinetscan\Target;
+use GlpiPlugin\Glpinetscan\Warranty;
 
 /**
  * Install.
@@ -429,6 +430,71 @@ function plugin_glpinetscan_install()
         );
     }
 
+    // ------------------------------------------------------------- warranties
+    // One row per asset the warranty lookup has considered. The warranty
+    // itself lives in `glpi_infocoms`, which is the point of the feature; this
+    // table holds the three things Infocom has no room for — the full
+    // entitlement list behind the single span that was written, the failures
+    // (an empty Infocom cannot tell "the vendor has no record" from "the
+    // credentials expired"), and the schedule that keeps a nightly pass over a
+    // large estate inside a vendor's rate limit.
+    //
+    // `applied_signature` is a fingerprint of what this plugin last wrote. If
+    // the asset's warranty fields no longer match it, a person has edited them
+    // and the lookup is recorded but not applied.
+    if (!$DB->tableExists(Warranty\Record::TABLE)) {
+        $DB->doQuery(
+            "CREATE TABLE `" . Warranty\Record::TABLE . "` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `itemtype` VARCHAR(100) NOT NULL,
+                `items_id` INT UNSIGNED NOT NULL DEFAULT 0,
+                `serial` VARCHAR(255) NOT NULL DEFAULT '',
+                `vendor` VARCHAR(32) NOT NULL DEFAULT '',
+                `status` VARCHAR(16) NOT NULL DEFAULT '',
+                `message` VARCHAR(500) NOT NULL DEFAULT '',
+                `product` VARCHAR(255) NOT NULL DEFAULT '',
+                `service_level` VARCHAR(255) NOT NULL DEFAULT '',
+                `principal_type` VARCHAR(16) NOT NULL DEFAULT '',
+                `start_date` DATE NULL DEFAULT NULL,
+                `end_date` DATE NULL DEFAULT NULL,
+                `is_lifetime` TINYINT NOT NULL DEFAULT 0,
+                `is_covered` TINYINT NOT NULL DEFAULT 0,
+                `ship_date` DATE NULL DEFAULT NULL,
+                `purchase_date` DATE NULL DEFAULT NULL,
+                `country` VARCHAR(8) NOT NULL DEFAULT '',
+                `entitlement_count` INT UNSIGNED NOT NULL DEFAULT 0,
+                `entitlements` MEDIUMTEXT NULL,
+                `applied` TINYINT NOT NULL DEFAULT 0,
+                `applied_signature` VARCHAR(64) NOT NULL DEFAULT '',
+                `checked_at` TIMESTAMP NULL DEFAULT NULL,
+                `next_check_at` TIMESTAMP NULL DEFAULT NULL,
+                `date_creation` TIMESTAMP NULL DEFAULT NULL,
+                `date_mod` TIMESTAMP NULL DEFAULT NULL,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `item` (`itemtype`,`items_id`),
+                KEY `due` (`next_check_at`),
+                KEY `vendor` (`vendor`,`status`),
+                KEY `end_date` (`end_date`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=$charset COLLATE=$collate"
+        );
+    }
+
+    // The plugin's first cron task. Hourly and bounded, rather than nightly and
+    // all at once: the resource being spent is a hardware vendor's rate limit,
+    // and a trickle is both kinder to it and quicker to surface a credential
+    // problem than a single burst at 03:00.
+    //
+    // Registered whether or not the feature is switched on — the task returns
+    // immediately while the master switch is off, and a cron that only appears
+    // once a setting is saved is one an administrator cannot find in order to
+    // schedule it.
+    CronTask::register(
+        Warranty\Sync::class,
+        'warrantyLookup',
+        HOUR_TIMESTAMP,
+        ['state' => CronTask::STATE_WAITING, 'mode' => CronTask::MODE_EXTERNAL]
+    );
+
     plugin_glpinetscan_enable_lag_ports();
 
     Secret::ensureDefault();
@@ -551,7 +617,7 @@ function plugin_glpinetscan_uninstall()
     /** @var DBmysql $DB */
     global $DB;
 
-    foreach (['secrets', 'scanners', 'targets', 'oidprofiles', 'runs', 'powerdevices', 'outlets', 'assetmap', 'packages', 'wifinetworks', 'accesspoints', 'seen', 'actions', 'traps'] as $suffix) {
+    foreach (['secrets', 'scanners', 'targets', 'oidprofiles', 'runs', 'powerdevices', 'outlets', 'assetmap', 'packages', 'wifinetworks', 'accesspoints', 'seen', 'actions', 'traps', 'warranties'] as $suffix) {
         $table = "glpi_plugin_glpinetscan_$suffix";
         if ($DB->tableExists($table)) {
             $DB->doQuery("DROP TABLE `$table`");
@@ -564,10 +630,44 @@ function plugin_glpinetscan_uninstall()
         'itemtype' => [Target::class, Scanner::class, OidProfile::class],
     ]);
 
+    CronTask::unregister('glpinetscan');
+
     Config::deleteConfigurationValues(
         PLUGIN_GLPINETSCAN_CONFIG_CONTEXT,
         array_keys(\GlpiPlugin\Glpinetscan\Settings::DEFAULTS)
     );
 
+    // Including every vendor credential. Leaving those behind would keep seven
+    // support-portal secrets in the database of an instance that no longer has
+    // the plugin that reads them.
+    Config::deleteConfigurationValues(
+        PLUGIN_GLPINETSCAN_CONFIG_CONTEXT,
+        array_keys(Warranty\Settings::defaults())
+    );
+
     return true;
+}
+
+/**
+ * An asset was purged: forget what the vendor told us about it.
+ *
+ * GLPI reuses primary keys, so a lookup row left behind on (itemtype, items_id)
+ * would eventually be read as belonging to an unrelated new device — and it
+ * would be read, because the row carries the signature that decides whether
+ * this plugin may write that asset's warranty fields.
+ */
+function plugin_glpinetscan_item_purged($item)
+{
+    if (!($item instanceof CommonDBTM)) {
+        return;
+    }
+
+    try {
+        Warranty\Record::purgeItem($item->getType(), (int) $item->getID());
+    } catch (\Throwable $e) {
+        trigger_error(
+            'glpinetscan: could not clear the warranty record: ' . $e->getMessage(),
+            E_USER_WARNING
+        );
+    }
 }

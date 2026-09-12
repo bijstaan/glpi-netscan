@@ -912,6 +912,113 @@ The scanner mitigates (2) by deriving a device MAC from the lowest-numbered
 port when the device offers no chassis MAC, so the by-mac rule has something
 to key on.
 
+## Warranty lookups
+
+The plugin can ask hardware vendors when the support contract or warranty on each scanned
+device ends, and write the answer into **GLPI's own warranty fields** on the asset's
+*Financial information* tab — `warranty_date`, `warranty_duration` and `warranty_info`.
+Nothing is stored in a private format, so GLPI's existing warranty-expiry search option, its
+expiry-alert cron, the dashboards and CSV export all keep working with no further help.
+
+Setup → GLPI Netscan → **Warranty lookups**. It covers NetworkEquipment, Printer, Phone, PDU
+and Computer — everything the scanner produces that GLPI can hold an Infocom on. (`Unmanaged`
+is not in `$CFG_GLPI['infocom_types']`, so there is nowhere to write an answer.)
+
+| Vendor | API | Credentials |
+|---|---|---|
+| Cisco | Support API SN2INFO v2 | OAuth2 client ID + secret, from apiconsole.cisco.com |
+| Juniper | Service Asset API v1.0 (`css-asset`) | API key + application id + customer source id, from Juniper onboarding |
+| HPE | Support Entitlement (warrantyCheck) | OAuth2 client ID + secret, issued against a support agreement |
+| Fortinet | FortiCare Registration API v3 | A FortiCloud **IAM API user** (not a portal login) |
+| Pure Storage | Pure1 REST API, support contracts | Pure1 application id + an RSA private key |
+| Dell | TechDirect Asset Entitlements v5 | OAuth2 client ID + secret, from techdirect.dell.com |
+| HP Inc. | Product Warranty API v2 | OAuth2 client ID + secret, from developers.hp.com |
+| Lenovo | Warranty & Contract v2.5 | A `ClientID` token from a Lenovo account representative |
+| Apple | GSX REST v2 | AASP/self-servicing agreement, client certificate, Sold-To/Ship-To, activation token |
+| Microsoft Surface | Surface API Management Service | Entra app in the Intune tenant + an API subscription key |
+
+Every one of these requires an account with the vendor; none has an anonymous tier. Each is
+a separate switch on top of a master switch, and nothing is contacted until both are on.
+**Only the serial number leaves the server** — no hostname, no address, no entity, no
+instance URL. Requests go through GLPI's configured proxy.
+
+Cisco and Juniper batch (75 and 50 serials per call), so an estate of switches is a handful
+of requests. Lookups run hourly from cron, bounded per run, with a per-vendor interval
+floor; a vendor that answers "wrong credentials" or "slow down" is dropped for the rest of
+the run rather than asked another ninety times.
+
+**Two of the ten answer about a fleet rather than a serial.** Microsoft and Pure Storage
+publish no per-device endpoint, so the whole tenant or organisation is fetched once per run
+and every asset is answered from that snapshot. **Pure Storage matches on array name, not
+serial** — Pure1 publishes no serial number anywhere in its public API, so an asset is
+matched to the Pure1 array whose name or FQDN equals its GLPI name (the SNMP sysName, in
+practice) and the Warranty tab says so. Rename an array in one place and not the other and
+it stops matching, which surfaces as "not found" rather than a wrong date. **Microsoft
+needs its tenant enrolled for scanning first** — a state change inside your Microsoft
+tenant, so it is a button on the settings page rather than something the cron does on its
+own, and the first scan takes up to five business days.
+
+**HP and HPE are told apart by asset type**, not by name — the 2015 split left two companies
+with two APIs and an estate's ProCurve switches and its EliteBooks both report a
+manufacturer of "HP". Anything on a NetworkEquipment, PDU, Enclosure or Rack goes to HPE.
+
+**Kit with no manufacturer is matched on its model**, which matters more here than anywhere
+else: a Cisco access point routinely lands in GLPI with no manufacturer at all, because the
+enterprise OID never mapped to one, and a model of `AIR-AP2802I-E-K9` or `C9120AXI-E`. Both
+of those were sitting unmatched in a real inventory, which is how the product-ID patterns in
+`Warranty/Detector.php` came to exist.
+
+**Vendors deliberately absent**, because they have no serial-number warranty API a plugin
+can call. Each was checked, not assumed:
+
+- **Arista Networks** — the only public API on `arista.com` is the software download service
+  (`custom_data/api`, as used by eos-downloader); CloudVision's APIs describe devices under
+  management, not support entitlement. Warranty is the support portal's serial page.
+- **Ubiquiti** — `api.ui.com` and the UniFi APIs return device inventory with no coverage
+  data; warranty runs through the RMA form at rma.ui.com, which wants proof of purchase
+  rather than a serial.
+- **Supermicro** — the serial-number warranty check is a web form; RMA is email.
+- **Zebra, APC/Schneider, Acer, ASUS, MSI, Dynabook/Toshiba, Fujitsu**, and the phone and
+  printer makers (Polycom, Yealink, Kyocera, Brother) — a web form in every case. Scraping
+  one would break silently and is not shipped here.
+- **Cisco Meraki** — excluded on purpose: Meraki serials are not in SN2INFO, so without that
+  exclusion every access point in an estate would fail every night.
+
+Assets from any of those are recorded as *not applicable* rather than failing.
+
+### What lands where
+
+A device routinely has several overlapping entitlements — a hardware warranty, a SmartNet or
+FortiCare contract, sometimes both with different clocks. Infocom holds one span, so the
+**entitlement that ends last** is the one written; the full list is on the asset's *Warranty*
+tab, along with the service level, when it was last checked, and — the case that actually
+generates support questions — *why* there is no warranty. An empty Financial tab cannot tell
+"the vendor has no record of this serial" from "the credentials expired a fortnight ago",
+and those have very different answers.
+
+Warranty fields somebody typed in by hand are never overwritten unless an administrator
+explicitly allows it, and the purchase date and supplier are only ever filled in when empty.
+
+Two quirks worth knowing because they look like bugs here and are not:
+
+- **Cisco reports an end date and no start date.** GLPI stores a start plus a duration in
+  months, so a coverage with no start is written as a zero-length span ending on the right
+  day. Every expiry view and every alert is then correct; the "start" column holds the end
+  date, and `warranty_info` says so explicitly rather than letting anyone read it as a
+  purchase date.
+- **GLPI computes the expiry two different ways.** The search option and the warranty-alert
+  cron both use `DATE_ADD(warranty_date, INTERVAL warranty_duration MONTH)`, which lands
+  exactly on the vendor's end date; the Financial tab subtracts a day, to show the last day
+  still covered.
+
+The engine is shared with [glpi-osquery](https://github.com/bijstaan/glpi-osquery), which
+does the same job for the machines its agent inventories. Both ship a complete copy so
+neither requires the other; in the monorepo `tools/sync-warranty.sh` projects one into the
+other, and everything genuinely per-plugin lives in `Warranty/Scope.php`.
+
+No glpi-ai tool is added for this on purpose: the data is in GLPI's native fields, which the
+assistant already reads, and a second source could only disagree with the first.
+
 ## Development
 
 Two dev targets, because one is not enough:
@@ -938,6 +1045,12 @@ glpi-netscan -once -target 172.20.0.7 -community public \
 
 go test ./...
 cd glpi-netscan/plugin/tests/browser && node netscan-check.js
+
+# 370 dependency-free tests for the warranty lookup: all ten vendor clients
+# against captured response shapes (asserting the requests too, since none of
+# these APIs can be called from a test environment), vendor detection, failure
+# classification and the projection onto GLPI's fields.
+docker exec glpi-glpi-1 php /var/www/glpi/plugins/glpinetscan/tests/warranty.php
 ```
 
 ## Status

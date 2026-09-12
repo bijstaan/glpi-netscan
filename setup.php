@@ -28,8 +28,10 @@ use GlpiPlugin\Glpinetscan\Settings;
 use GlpiPlugin\Glpinetscan\OidProfile;
 use GlpiPlugin\Glpinetscan\Scanner;
 use GlpiPlugin\Glpinetscan\Target;
+use GlpiPlugin\Glpinetscan\WarrantyTab;
+use Glpi\Plugin\Hooks;
 
-define('PLUGIN_GLPINETSCAN_VERSION', '0.7.0');
+define('PLUGIN_GLPINETSCAN_VERSION', '0.8.0');
 define('PLUGIN_GLPINETSCAN_MIN_GLPI', '11.0');
 define('PLUGIN_GLPINETSCAN_CONFIG_CONTEXT', 'plugin:glpinetscan');
 
@@ -81,6 +83,40 @@ function plugin_init_glpinetscan()
     // Only appears on assets that have actually sent a notification; see
     // TrapTab::getTabNameForItem.
     Plugin::registerClass(TrapTab::class, ['addtabon' => ['NetworkEquipment', 'PDU', 'Printer', 'Phone']]);
+
+    // "Warranty" tab on scanned kit. The dates themselves go into GLPI's own
+    // Infocom fields, so this tab carries what Infocom has no room for: the
+    // full entitlement list, and why there is no warranty when there is none.
+    // Shown only where there is something to say — see
+    // WarrantyTab::getTabNameForItem. Unmanaged is absent because it is not in
+    // $CFG_GLPI['infocom_types'], so there would be nowhere to write an answer.
+    Plugin::registerClass(WarrantyTab::class, [
+        'addtabon' => ['NetworkEquipment', 'Printer', 'Phone', 'PDU', 'Computer'],
+    ]);
+
+    // Seven hardware vendors' API credentials. Declaring them here is what makes
+    // Config::setConfigurationValues() encrypt them on write, mask them in the
+    // history log, and re-encrypt them when an administrator runs
+    // `glpi:security:changekey` — without which a key rotation silently orphans
+    // every one of them at once.
+    //
+    // SECURED_CONFIGS rather than SECURED_FIELDS: the values live in
+    // `glpi_configs.value`, a core column shared with every other setting in
+    // GLPI, and naming that column would point the rotation migration at all of
+    // them.
+    $PLUGIN_HOOKS[Hooks::SECURED_CONFIGS]['glpinetscan'] =
+        GlpiPlugin\Glpinetscan\Warranty\Settings::secretKeys();
+
+    // A purged asset takes its warranty lookup with it. The row is keyed on
+    // (itemtype, items_id) and GLPI reuses ids, so an orphan would eventually
+    // attach one device's warranty history to an unrelated new one.
+    $PLUGIN_HOOKS['item_purge']['glpinetscan'] = [
+        'NetworkEquipment' => 'plugin_glpinetscan_item_purged',
+        'Printer'          => 'plugin_glpinetscan_item_purged',
+        'Phone'            => 'plugin_glpinetscan_item_purged',
+        'PDU'              => 'plugin_glpinetscan_item_purged',
+        'Computer'         => 'plugin_glpinetscan_item_purged',
+    ];
 
     // Operational objects under Administration; configuration under Setup,
     // which is the split GLPI itself makes.

@@ -26,6 +26,16 @@ use GlpiPlugin\Glpiai\Tool;
  * night" is answerable from an inventory only by inference; a linkDown trap
  * with a timestamp answers it outright.
  *
+ * `network_coverage` is the exception to the rule above, and it earns it by
+ * being about the *scanner* rather than about the network: which ranges are
+ * being swept, when each last ran and whether it failed, and — the part
+ * nothing else in GLPI can produce — the addresses that answered SNMP and
+ * never became an asset. Those are either shadow kit or a broken mapping, and
+ * both are invisible from an inventory, which by definition only contains
+ * what made it in. It is also the honest answer to a question models get
+ * wrong constantly: "there is nothing on that subnet" usually means nobody
+ * has scanned it.
+ *
  * Gated on GLPI's `networking` right rather than on `config`, which is what
  * this plugin uses for its own scanner and target records. Those are
  * configuration and belong to an administrator; this is diagnostic data about
@@ -41,6 +51,7 @@ final class AiTools
     public static function all(): array
     {
         return [
+            self::coverage(),
             self::alarms(),
             self::power(),
             self::wireless(),
@@ -48,6 +59,169 @@ final class AiTools
     }
 
     // --------------------------------------------------------------- alarms
+
+    // ------------------------------------------------------------- coverage
+
+    private static function coverage(): Tool
+    {
+        return new Tool(
+            name: 'network_coverage',
+            description: 'What the SNMP scanner is actually watching and what it has found: the '
+                . 'scan targets and their ranges, when each last ran and whether it failed, and '
+                . 'the devices that answered SNMP but never became a GLPI asset. Use it before '
+                . 'concluding that a subnet is empty or that something is not on the network — '
+                . 'an inventory only contains what made it in, and an unmapped device is either '
+                . 'shadow kit or a scan that is not landing.',
+            schema: [
+                'type'       => 'object',
+                'properties' => [
+                    'unmapped_only' => [
+                        'type'        => 'string',
+                        'enum'        => ['yes', 'no'],
+                        'description' => 'Only the devices that answered but are not linked to '
+                            . 'an asset. Defaults to no.',
+                    ],
+                ],
+            ],
+            handler: [self::class, 'runCoverage'],
+            right: 'networking',
+            source: 'glpinetscan',
+            pinned: false
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $arguments
+     * @return array<string,mixed>
+     */
+    public static function runCoverage(array $arguments = [], mixed $context = null): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $unmapped_only = strtolower((string) ($arguments['unmapped_only'] ?? 'no')) === 'yes';
+
+        $targets = [];
+        $ids     = [];
+
+        foreach (
+            $DB->request([
+                'FROM'  => 'glpi_plugin_glpinetscan_targets',
+                'WHERE' => ['is_deleted' => 0]
+                    + getEntitiesRestrictCriteria('glpi_plugin_glpinetscan_targets', '', '', true),
+                'ORDER' => ['name ASC'],
+                'LIMIT' => self::MAX_ROWS,
+            ]) as $row
+        ) {
+            $ids[] = (int) $row['id'];
+
+            $targets[] = array_filter([
+                'target'    => (string) $row['name'],
+                'ranges'    => (string) $row['ranges'],
+                'entity'    => (string) \Dropdown::getDropdownName('glpi_entities', (int) $row['entities_id']),
+                'active'    => (bool) $row['is_active'],
+                'every'     => (int) $row['scan_interval'] > 0
+                    ? sprintf('%d minutes', (int) round(((int) $row['scan_interval']) / 60))
+                    : null,
+                'last_run'  => (string) ($row['last_run'] ?? '') ?: 'never',
+                'last_result' => self::lastRun((int) $row['id']),
+            ], static fn($v): bool => $v !== null && $v !== '');
+        }
+
+        $seen     = [];
+        $unmapped = 0;
+
+        if ($ids !== []) {
+            foreach (
+                $DB->request([
+                    'FROM'  => Discovery::TABLE,
+                    'WHERE' => ['plugin_glpinetscan_targets_id' => $ids],
+                    'ORDER' => ['last_discovery DESC'],
+                    'LIMIT' => self::MAX_ROWS * 4,
+                ]) as $row
+            ) {
+                $itemtype = (string) ($row['itemtype'] ?? '');
+                $items_id = (int) ($row['items_id'] ?? 0);
+                $mapped   = $itemtype !== '' && $items_id > 0;
+
+                if (!$mapped) {
+                    $unmapped++;
+                }
+
+                if ($unmapped_only && $mapped) {
+                    continue;
+                }
+
+                if (count($seen) >= self::MAX_ROWS) {
+                    continue;
+                }
+
+                $seen[] = array_filter([
+                    'address'   => (string) $row['address'],
+                    'device_id' => (string) $row['deviceid'],
+                    'last_seen' => (string) ($row['last_discovery'] ?? ''),
+                    'asset'     => $mapped ? self::assetName($itemtype, $items_id) : null,
+                    'unmapped'  => $mapped ? null : 'answered SNMP but is not a GLPI asset',
+                ], static fn($v): bool => $v !== null && $v !== '');
+            }
+        }
+
+        return array_filter([
+            'targets' => $targets,
+            'devices' => $seen,
+            'unmapped_count' => $unmapped ?: null,
+            'note'    => $targets === []
+                ? 'No scan targets are configured that you can see. Nothing on the network is '
+                    . 'being swept by this scanner, so an absence of devices here says nothing '
+                    . 'about what is out there.'
+                : ($unmapped > 0
+                    ? sprintf(
+                        '%d device(s) answered SNMP and are not linked to any GLPI asset. Each '
+                        . 'one is either kit nobody recorded or a mapping that is not working.',
+                        $unmapped
+                    )
+                    : 'Everything the scanner has seen is mapped to an asset.'),
+        ], static fn($v): bool => $v !== null && $v !== []);
+    }
+
+    /** The last run against one target, in a sentence. */
+    private static function lastRun(int $targets_id): ?string
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+
+        foreach (
+            $DB->request([
+                'FROM'  => 'glpi_plugin_glpinetscan_runs',
+                'WHERE' => ['plugin_glpinetscan_targets_id' => $targets_id],
+                'ORDER' => ['id DESC'],
+                'LIMIT' => 1,
+            ]) as $row
+        ) {
+            $message = trim((string) ($row['message'] ?? ''));
+
+            return sprintf(
+                '%d discovered, %d inventoried, %d failed%s',
+                (int) $row['discovered'],
+                (int) $row['inventoried'],
+                (int) $row['failed'],
+                $message !== '' ? ' — ' . mb_substr($message, 0, 200) : ''
+            );
+        }
+
+        return null;
+    }
+
+    private static function assetName(string $itemtype, int $items_id): ?string
+    {
+        $item = getItemForItemtype($itemtype);
+
+        if ($item === false || !$item->getFromDB($items_id) || !$item->canViewItem()) {
+            return null;
+        }
+
+        return sprintf('%s %d: %s', $itemtype, $items_id, (string) ($item->fields['name'] ?? ''));
+    }
 
     private static function alarms(): Tool
     {

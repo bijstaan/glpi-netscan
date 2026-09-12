@@ -156,6 +156,23 @@ if (!$can_edit) {
        . '</div>';
 }
 
+// Warranty lookups live on a page of their own: seven vendors with up to eight
+// credentials each is more configuration than everything on this page put
+// together, and it is a separate decision — nothing leaves the building until
+// somebody makes it.
+echo "<div class='card mb-3'><div class='card-body d-flex justify-content-between align-items-center'>";
+echo "<div>";
+echo "<strong>" . __s('Warranty lookups', 'glpinetscan') . "</strong><br>";
+echo "<span class='text-muted'>"
+   . __s('Ask Cisco, HPE, Fortinet, Dell, HP, Lenovo and Apple about the serial numbers the '
+      . 'scanner found, and write what they say onto each asset\'s Financial information tab.', 'glpinetscan')
+   . "</span>";
+echo "</div>";
+echo "<a class='btn btn-outline-primary' href='"
+   . Plugin::getWebDir('glpinetscan') . "/front/warranty.php'>"
+   . __s('Configure', 'glpinetscan') . "</a>";
+echo "</div></div>";
+
 // --- Readiness ---
 echo "<div class='card mb-3'><div class='card-header'><h3 class='card-title'>"
     . __s('Readiness', 'glpinetscan') . '</h3></div><div class="card-body">';
