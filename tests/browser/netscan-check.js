@@ -2,8 +2,13 @@
 // Copyright (C) 2026 Bijstaan
 // Verify the glpinetscan plugin's UI pages render and the API behaves.
 const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+const { fullPage } = require('./shot');
+const { openDark, audit } = require('./dark');
 const BASE = 'http://localhost:8081';
 const SHOTS = process.env.SHOT_DIR || '.';
+const DARK_SHOTS = path.join(SHOTS, 'dark');
 const fail = [];
 const check = (n, c, d) => { console.log(`${c?'PASS':'FAIL'}  ${n}${d?' :: '+String(d).slice(0,140):''}`); if(!c) fail.push(n); };
 
@@ -387,6 +392,143 @@ const check = (n, c, d) => { console.log(`${c?'PASS':'FAIL'}  ${n}${d?' :: '+Str
     check('port-channel imported at all', false, 'core-sw-01 not found');
   }
 
+  // --- port map --------------------------------------------------------
+  // The faceplate. Everything it draws is core's own port data, so the checks
+  // are about the drawing: that the layout is the arrangement of the sockets
+  // rather than a list, that switching what the colours mean re-colours
+  // without a round trip, and that a port's VLANs and neighbour are one click
+  // away rather than one tab away.
+  if (swAggId) {
+    await p.goto(`${BASE}/front/networkequipment.form.php?id=${swAggId}`, {waitUntil: 'networkidle'});
+
+    // Core has no hook for tab order — plugin tabs are appended last, always —
+    // so the map sitting next to the table it is a picture of is done by
+    // moving one list item at load. Checked because it is the kind of DOM edit
+    // a GLPI release can quietly break.
+    const navOrder = await p.evaluate(() => Array.from(
+      document.querySelectorAll('#tabspanel > li a')
+    ).map(a => a.textContent.trim()));
+    const mapAt = navOrder.findIndex(t => /^Port map/.test(t));
+    const portsAt = navOrder.findIndex(t => /^Network ports/.test(t));
+    check('port map tab present', mapAt >= 0, navOrder.slice(0, 3).join());
+    check('port map sits immediately before the ports table',
+          mapAt >= 0 && portsAt === mapAt + 1, `map ${mapAt}, ports ${portsAt}`);
+
+    // The narrow-screen picker switches tabs by POSITION, so a reordered bar
+    // with an unrenumbered <select> opens the wrong tab on a phone.
+    const selAligned = await p.evaluate(() => {
+      const opts = document.querySelectorAll('#tabspanel-select option');
+      return Array.from(document.querySelectorAll('#tabspanel > li')).every((li, i) =>
+        opts[i] && String(opts[i].value) === String(i)
+        && opts[i].textContent.trim().startsWith(
+          (li.querySelector('a').textContent.trim().split(' ')[0])));
+    });
+    check('the narrow-screen tab picker was renumbered with it', selAligned, '');
+
+    if (mapAt >= 0) {
+      await p.locator('a[href*="forcetab"]', {hasText: /^Port map/}).first().click();
+      await p.waitForTimeout(2000);
+
+      const face = await p.evaluate(() => {
+        const root = document.querySelector('.glpinetscan-portmap');
+        if (!root) { return null; }
+        const tiles = Array.from(root.querySelectorAll('.glpinetscan-port'));
+        const byName = (n) => tiles.find(t => t.title.startsWith(n + ' '));
+        const box = (t) => t ? t.getBoundingClientRect() : null;
+        return {
+          mode: root.dataset.mode,
+          tiles: tiles.length,
+          modules: Array.from(root.querySelectorAll('.glpinetscan-module-label'))
+            .map(x => x.textContent.trim()),
+          summary: root.querySelector('[data-portmap-summary]').innerText.replace(/\s+/g, ' '),
+          one: box(byName('GigabitEthernet0/1')),
+          two: box(byName('GigabitEthernet0/2')),
+          three: box(byName('GigabitEthernet0/3')),
+          trunk: byName('GigabitEthernet0/4')?.dataset.trunk,
+          upFill: getComputedStyle(byName('GigabitEthernet0/1')).backgroundColor,
+          rows: root.querySelectorAll('details tbody tr').length,
+        };
+      });
+
+      check('faceplate rendered', face !== null, '');
+      if (face) {
+        // Port 2 below port 1, port 3 to the right of port 1: the physical
+        // arrangement, which is the whole reason this is a picture. A list
+        // would put 2 to the right of 1 and nothing below anything.
+        check('ports are laid out two to a column, as on the box',
+              face.two.top > face.one.top && face.three.left > face.one.left
+              && Math.abs(face.three.top - face.one.top) < 2,
+              `1@${face.one.top}/${face.one.left} 2@${face.two.top} 3@${face.three.left}`);
+        // The aggregate and the management port have no socket on the front
+        // and must not be drawn as if they did.
+        check('logical interfaces are kept off the faceplate',
+              face.modules.some(m => /Logical/i.test(m)) && face.modules.length >= 2,
+              face.modules.join());
+        check('the summary counts the ports', /\d+ ports/.test(face.summary), face.summary.slice(0, 60));
+        check('a trunk is marked as one', face.trunk === '1', face.trunk);
+        check('every port is also in the table', face.rows === face.tiles, `${face.rows}/${face.tiles}`);
+      }
+
+      // Switching what the colours mean is an attribute change, not a reload:
+      // every mode's answer is already on every tile.
+      const vlanMode = await p.evaluate(() => {
+        document.querySelector('[data-portmap-mode="vlan"]').click();
+        const root = document.querySelector('.glpinetscan-portmap');
+        const legend = root.querySelector('.glpinetscan-legend[data-legend="vlan"]');
+        const tile = Array.from(root.querySelectorAll('.glpinetscan-port'))
+          .find(t => t.title.startsWith('GigabitEthernet0/3 '));
+        return {
+          mode: root.dataset.mode,
+          legendShown: getComputedStyle(legend).display !== 'none',
+          legend: legend.innerText.replace(/\s+/g, ' '),
+          vlanOnTile: tile.querySelector('[data-for="vlan"]').textContent.trim(),
+          fill: getComputedStyle(tile).backgroundColor,
+        };
+      });
+      check('VLAN mode names the VLANs it colours by',
+            vlanMode.legendShown && /voice/.test(vlanMode.legend), vlanMode.legend.slice(0, 70));
+      check('a port shows the VLAN an untagged device would land in',
+            vlanMode.vlanOnTile === '20', vlanMode.vlanOnTile);
+      await p.mouse.move(0, 0);
+      await p.screenshot({path: `${SHOTS}/netscan-10-portmap-vlan.png`, fullPage: true});
+
+      // Clicking a port is what turns "port 3 is up" into "port 3 is the
+      // handset on desk 14", which is the question the view exists for.
+      const detail = await p.evaluate(() => {
+        const root = document.querySelector('.glpinetscan-portmap');
+        Array.from(root.querySelectorAll('.glpinetscan-port'))
+          .find(t => t.title.startsWith('GigabitEthernet0/3 ')).click();
+        const open = Array.from(root.querySelectorAll('[data-detail-for]')).filter(d => !d.hidden);
+        return open.map(d => d.innerText.replace(/\s+/g, ' '));
+      });
+      check('exactly one port detail is open at a time', detail.length === 1, `${detail.length} open`);
+      await p.mouse.move(0, 0);
+      await p.screenshot({path: `${SHOTS}/netscan-10-portmap.png`, fullPage: true});
+      check('the detail names the port\'s VLAN and its state',
+            detail.length === 1 && /voice/.test(detail[0]) && /Up/.test(detail[0]),
+            (detail[0] || '').slice(0, 90));
+
+      // Refreshing rebuilds the map from the same renderer the tab used, so a
+      // reload must not lose the selection or leave an error banner behind.
+      await p.click('[data-portmap-refresh]');
+      await p.waitForTimeout(1500);
+      const after = await p.evaluate(() => {
+        const root = document.querySelector('.glpinetscan-portmap');
+        return {
+          tiles: root.querySelectorAll('.glpinetscan-port').length,
+          failed: !!root.querySelector('.alert'),
+          stillSelected: root.querySelectorAll('.glpinetscan-port.selected').length,
+          mode: root.dataset.mode,
+        };
+      });
+      check('refresh redraws the map', after.tiles === (face ? face.tiles : 0) && !after.failed,
+            JSON.stringify(after));
+      check('refresh keeps the port being watched selected', after.stillSelected === 1,
+            String(after.stillSelected));
+      check('refresh keeps the chosen colouring', after.mode === 'vlan', after.mode);
+    }
+  }
+
   // --- wireless --------------------------------------------------------
   // One scanned address has to produce many assets. The access points behind a
   // controller do not answer SNMP at all — the controller is the only place
@@ -761,6 +903,34 @@ const check = (n, c, d) => { console.log(`${c?'PASS':'FAIL'}  ${n}${d?' :: '+Str
   }
 
   check('no page errors', errs.length===0, errs.join(' | '));
+
+  // --- The dark palette --------------------------------------------------
+  //
+  // The scan target and scanner lists and the port map are all drawn by this
+  // plugin, the port map in colours it picks per VLAN — the surface most likely
+  // to stop being legible on a black body.
+  fs.mkdirSync(DARK_SHOTS, { recursive: true });
+  console.log('\nswitching to the dark palette...');
+
+  const dark = await openDark(b, { plugin: 'glpinetscan' });
+
+  for (const [url, name, shot] of [
+    [`${BASE}/plugins/glpinetscan/front/target.php`, 'the scan targets', 'netscan-dark-01-targets.png'],
+    [`${BASE}/plugins/glpinetscan/front/scanner.php`, 'the scanners', 'netscan-dark-02-scanners.png'],
+    [`${BASE}/plugins/glpinetscan/front/config.php`, 'the settings page', 'netscan-dark-03-settings.png'],
+  ]) {
+    await dark.goto(url, { waitUntil: 'networkidle' });
+    await dark.waitForTimeout(500);
+    const bad = await audit(dark, 'glpinetscan-');
+    check(`[dark] ${name}: no near-white panel carrying dark-body text`,
+      bad.whiteBg.length === 0, JSON.stringify(bad.whiteBg));
+    check(`[dark] ${name}: muted text meets 4.5:1`,
+      bad.lowContrast.length === 0, JSON.stringify(bad.lowContrast));
+    await fullPage(dark, `${DARK_SHOTS}/${shot}`);
+  }
+
+  check('[dark] no page errors', dark.__darkErrors.length === 0, dark.__darkErrors.join(' | '));
+
   await b.close();
   console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(', ')}` : '\nall checks passed');
   process.exit(fail.length?1:0);

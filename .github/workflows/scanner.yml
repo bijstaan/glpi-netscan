@@ -1,0 +1,258 @@
+# Build the network scanner and its Windows installers.
+#
+# Three runners, doing three different jobs:
+#
+#   ubuntu-latest   the release. Static Go binaries for linux/amd64,
+#                   linux/arm64, windows/amd64 and windows/arm64, plus the two
+#                   .msi installers built with wixl. Cross-compiling is the
+#                   point: one host produces everything, so every artifact in a
+#                   release came out of the same checkout.
+#   windows-latest  nothing is built here. This job exercises what the build
+#                   cannot check: that msiexec leaves a service registered
+#                   against the `current` junction rather than the versioned
+#                   path, that it runs as LocalService and stays stopped when
+#                   it has no server to talk to, and that the directory name
+#                   matches the version the binary reports.
+#   macos-latest    a portability guard, not a build. The scanner ships for
+#                   Linux and Windows only — it is placed on a server or a
+#                   small always-on box at a site, and Apple sells neither, so
+#                   build.sh deliberately has no darwin target. What this job
+#                   buys is the test suite under a second kernel and libc, and
+#                   an early, cheap signal when something starts assuming
+#                   /proc, netlink or a Linux-only syscall. It produces no
+#                   artifact and nothing downstream depends on it.
+
+name: scanner
+
+on:
+  # The path filter applies to the branch pushes only: GitHub skips paths and
+  # paths-ignore entirely for tag pushes, so cutting a v-tag on a commit that
+  # happened not to touch scanner/ still builds a release.
+  push:
+    branches: [master, main]
+    paths:
+      - 'scanner/**'
+      - '.github/workflows/scanner.yml'
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to stamp into the binaries and installers
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  # Worked out once, in a shell, rather than in an expression. Everything
+  # downstream compares this string against itself — the versioned directory
+  # name, the ldflags stamp, the MSI's full_version — so a `v` prefix surviving
+  # in one place and not another turns into a failed assertion two jobs later.
+  # Tags are stripped to their bare version here and nowhere else.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+    steps:
+      - id: pick
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            v="$INPUT_VERSION"
+          elif [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            v="${GITHUB_REF#refs/tags/}"
+            v="${v#v}"
+          else
+            v="0.0.0-ci"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "building $v"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: scanner/go.mod
+          cache-dependency-path: scanner/go.sum
+      # The same four checks the monorepo's GitLab pipeline runs, in the same
+      # order, so a change that is green there is green here.
+      - name: gofmt, vet, build, test
+        working-directory: scanner
+        env:
+          # Test builds need no VCS stamp, and stamping fails when the
+          # checkout's ownership differs from the job user's.
+          GOFLAGS: -buildvcs=false
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt"; exit 1; }
+          go vet ./...
+          go build ./...
+          go test ./...
+
+  # See the header: no darwin artifact is produced or shipped. This is the
+  # suite under a second operating system.
+  portability:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: scanner/go.mod
+          cache-dependency-path: scanner/go.sum
+      - name: vet and test on darwin
+        working-directory: scanner
+        env:
+          GOFLAGS: -buildvcs=false
+        run: |
+          go vet ./...
+          go build ./...
+          go test ./...
+
+  linux:
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      # Lifted into the environment because `secrets` is not one of the
+      # contexts available to a step's `if:` — `env` is.
+      SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+      SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: scanner/go.mod
+          cache-dependency-path: scanner/go.sum
+
+      # wixl is a separate package from msitools, which ships msiinfo/msibuild
+      # but not wixl itself. build-msi.sh needs all three, and osslsigncode
+      # only when a certificate is configured.
+      - name: Install the packaging tools
+        run: sudo apt-get update && sudo apt-get install -y wixl msitools osslsigncode
+
+      # build.sh takes its version from the environment, not an argument, and
+      # builds all four targets in one pass with a .sha256 beside each.
+      - name: Build the scanner
+        working-directory: scanner
+        run: ./build.sh
+
+      # Opt-in. Without a certificate the MSIs come out unsigned, which is fine
+      # for CI but SmartScreen warns on them and many fleets refuse unsigned
+      # installers outright — so set these two secrets before cutting a tag.
+      - name: Prepare the code-signing certificate
+        if: env.SIGN_PFX_BASE64 != ''
+        run: |
+          printf '%s' "$SIGN_PFX_BASE64" | base64 -d > "$RUNNER_TEMP/sign.pfx"
+          echo "SIGN_PFX=$RUNNER_TEMP/sign.pfx" >> "$GITHUB_ENV"
+
+      # build-msi.sh asserts the MSI's own contents — secure properties, the
+      # versioned directory name, the service account and start type, the
+      # custom-action type — and fails rather than shipping a subtly wrong
+      # package.
+      - name: Build and verify the MSIs
+        working-directory: scanner
+        run: |
+          ./packaging/build-msi.sh "$VERSION" amd64
+          ./packaging/build-msi.sh "$VERSION" arm64
+
+      - name: Checksums
+        working-directory: scanner
+        run: cat dist/"$VERSION"/*.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: |
+            scanner/dist/${{ needs.version.outputs.version }}/glpi-netscan_*_linux_*
+            scanner/dist/${{ needs.version.outputs.version }}/glpi-netscan_*_windows_*.exe
+            scanner/dist/${{ needs.version.outputs.version }}/glpi-netscan_*_windows_*.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: scanner/dist/${{ needs.version.outputs.version }}/*.msi*
+
+  windows:
+    needs: [version, linux]
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: msi
+          path: msi
+
+      - name: Locate the MSI
+        run: |
+          $msi = (Get-ChildItem -Recurse -Filter *_amd64.msi msi | Select-Object -First 1).FullName
+          if (-not $msi) { throw "no amd64 MSI in the artifact" }
+          "MSI=$msi" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # Installed without SERVER/ENROLLSECRET on purpose: that is the path that
+      # must leave a registered, idle service rather than one restart-looping
+      # against a server it has never been told about.
+      - name: Install
+        run: |
+          $p = Start-Process msiexec -ArgumentList "/i `"$env:MSI`" /qn /l*v install.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 80; throw "msiexec exited $($p.ExitCode)" }
+
+      - name: Check what was installed
+        run: |
+          $root = "$env:ProgramFiles\GLPI Netscan"
+          if (-not (Test-Path "$root\versions\$env:VERSION\glpi-netscan.exe")) { throw "versioned binary missing" }
+          if (-not (Test-Path "$root\current\glpi-netscan.exe")) { throw "current junction missing or broken" }
+
+          $svc = Get-CimInstance Win32_Service -Filter "Name='GLPINetscan'"
+          if (-not $svc) { throw "service not registered" }
+          Write-Host "service path: $($svc.PathName)"
+
+          # The bug this guards: ServiceInstall points at the versioned path, so
+          # the SCM would keep launching the installed version however many
+          # times the scanner updated itself.
+          if ($svc.PathName -notlike "*\current\glpi-netscan.exe*") {
+            throw "service points at '$($svc.PathName)' rather than the current junction; self-update would be inert"
+          }
+          if ($svc.StartName -ne "NT AUTHORITY\LocalService") { throw "service runs as $($svc.StartName), expected LocalService" }
+          if ($svc.State -ne "Stopped") { throw "service was started without credentials (state $($svc.State))" }
+
+          # The versioned directory must be named exactly what the binary
+          # reports, or the updater will try to 'update' to what is running.
+          $reported = (& "$root\current\glpi-netscan.exe" -version) -replace '^glpi-netscan ', ''
+          if ($reported -ne $env:VERSION) { throw "binary reports '$reported' but the directory is named '$env:VERSION'" }
+
+      - name: Uninstall
+        run: |
+          Start-Process msiexec -ArgumentList "/x `"$env:MSI`" /qn" -Wait
+          if (Get-Service GLPINetscan -ErrorAction SilentlyContinue) { throw "service survived uninstall" }
+          if (Test-Path "$env:ProgramFiles\GLPI Netscan\current") { throw "junction survived uninstall" }
+
+  # Only on a tag, and only once both platforms have agreed. Publishing a
+  # package in GLPI asks for a URL, a SHA-256 and a size; attaching the
+  # .sha256 files alongside the binaries is what makes the first two real
+  # without anyone re-deriving them by hand.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, linux, windows, portability]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          ls -l artifacts
+          gh release create "$TAG" artifacts/* \
+            --title "$VERSION" \
+            --generate-notes

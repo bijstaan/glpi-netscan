@@ -119,3 +119,266 @@
   .select2-selection__choice .select2-selection__choice__remove {
     color: color-mix(in srgb, var(--tblr-body-color), transparent 5%);
 }
+
+/* ===================================================================
+ * Port map — the faceplate on a NetworkEquipment's "Port map" tab.
+ *
+ * Unlike everything above, these are not theme-conformance patches:
+ * they are the view itself, and they are the plugin's only piece of
+ * drawing. Two decisions are worth stating because both look wrong
+ * until the reason is given.
+ *
+ * 1. The tile fills are fixed hex, not theme tokens. A faceplate is a
+ *    diagram of hardware, and green-is-up has to mean the same thing on
+ *    every palette an operator's colleague happens to be running —
+ *    tokens that shift with the theme would make two people describing
+ *    the same switch disagree about its colour. Every fill was measured
+ *    against white text: the lowest is 5.02:1 (VLAN blue) and the rest
+ *    clear 5.3:1. What IS theme-derived is the tile border, so the
+ *    tile's edge stays visible against both grounds — a dark "down"
+ *    tile on auror_dark is 1.8:1 against the body, which is why the
+ *    border is not decoration.
+ *
+ * 2. Every mode's answer is on the tile at once as a data attribute and
+ *    the selectors below pick. Switching mode then costs one attribute
+ *    write on the container: no re-render, no request, no flicker —
+ *    which is what makes flipping between "what is up" and "where does
+ *    VLAN 20 reach" a comparison rather than two lookups.
+ * =================================================================== */
+
+.glpinetscan-portmap {
+    --ns-up:       #2a7a37;
+    --ns-down:     #495057;
+    --ns-disabled: #c92a2a;
+    --ns-dormant:  #c2410c;
+
+    /* Assigned by VLAN tag, so a VLAN keeps its colour across every
+     * switch in the estate — the only thing that makes two faceplates
+     * comparable at a glance. */
+    --ns-vlan-0: #1971c2;
+    --ns-vlan-1: #2a7a37;
+    --ns-vlan-2: #c92a2a;
+    --ns-vlan-3: #6741d9;
+    --ns-vlan-4: #0b7285;
+    --ns-vlan-5: #a61e4d;
+    --ns-vlan-6: #5f3dc4;
+    --ns-vlan-7: #c2410c;
+    --ns-vlan-8: #087f5b;
+    --ns-vlan-9: #862e9c;
+
+    /* 40%, not less: the tile's border is its only boundary wherever the
+     * fill itself is close to the ground behind it — a "down" tile measures
+     * 1.8:1 against auror_dark's body — so it has to clear 3:1 on its own.
+     * Measured 3.34:1 on the light card and 3.16:1 on auror_dark; 60%
+     * transparency, which is what this was first written as, measures 2.11
+     * and 2.17 and is what the audit caught. */
+    --ns-edge: color-mix(in srgb, var(--tblr-body-color), transparent 40%);
+}
+
+/*
+ * Solid badges in the detail panel and the table.
+ *
+ * The same trap the dark rules above document — core's `.badge` inheriting
+ * the ambient page text colour instead of a contrasting one — is present in
+ * the LIGHT palette too, and nothing above patches it there: every solid
+ * badge on a light page renders its text in the body's slate blue
+ * (rgb(58,86,147)), measuring 1.43:1 on bg-secondary, 1.54:1 on bg-danger
+ * and 2.61:1 on bg-success. Scoped to the port map rather than to
+ * `.glpinetscan-surface` because widening it would restyle every other tab
+ * this plugin ships, which is a separate change to make deliberately.
+ *
+ * Ink chosen per measured face: black clears 7.7:1 on success and 9.8:1 on
+ * warning (white fails both), white clears 5.0:1 on blue and 4.66:1 on
+ * danger. Only bg-secondary's face flips with the palette — slate in light,
+ * near-white in dark — so only it is split, and the dark arm is left to the
+ * `.glpinetscan-surface` rule above, which already says #000.
+ */
+.glpinetscan-portmap .badge.bg-warning,
+.glpinetscan-portmap .badge.bg-success {
+    color: #000 !important;
+}
+.glpinetscan-portmap .badge.bg-danger,
+.glpinetscan-portmap .badge.bg-blue {
+    color: #fff !important;
+}
+:root:not([data-glpi-theme-dark="1"]) .glpinetscan-portmap .badge.bg-secondary {
+    color: #fff !important;
+}
+
+.glpinetscan-module-label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--tblr-muted);
+    margin-bottom: .25rem;
+}
+
+/*
+ * Column flow with two rows is the whole layout: it puts port 1 above
+ * port 2 and port 47 above port 48, which is how the sockets are
+ * physically arranged. Getting this from the grid rather than from
+ * assigned rows means a module with an odd number of ports, or gaps in
+ * its numbering, still draws correctly with no special case.
+ */
+.glpinetscan-faceplate {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(var(--ns-rows, 2), auto);
+    grid-auto-columns: max-content;
+    gap: 3px;
+    padding: .5rem;
+    border: 1px solid var(--ns-edge);
+    border-radius: var(--tblr-border-radius, 4px);
+    overflow-x: auto;
+}
+
+.glpinetscan-port {
+    width: 2.6rem;
+    height: 2.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    border: 1px solid var(--ns-edge);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--tblr-body-color);
+    font-size: .8rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+/* Logical interfaces carry a name rather than a socket number, and a
+ * name does not fit in a socket. */
+.glpinetscan-port-wide {
+    width: auto;
+    min-width: 5rem;
+    padding: 0 .5rem;
+    font-size: .75rem;
+}
+
+.glpinetscan-port-id {
+    font-variant-numeric: tabular-nums;
+}
+
+.glpinetscan-port-sub {
+    display: none;
+    font-size: .6rem;
+    opacity: .85;
+    font-variant-numeric: tabular-nums;
+}
+
+.glpinetscan-port:focus-visible,
+.glpinetscan-port.selected {
+    outline: 2px solid var(--tblr-primary);
+    outline-offset: 1px;
+}
+
+/* A trunk is marked by a stripe as well as by colour, because in VLAN
+ * mode the fill is already saying which VLAN is untagged and has
+ * nothing left to say about tagged ones. */
+.glpinetscan-port[data-trunk="1"] {
+    border-top: 3px solid var(--tblr-body-color);
+}
+
+/* --- status ------------------------------------------------------- */
+.glpinetscan-portmap[data-mode="status"] .glpinetscan-port[data-state="up"],
+.glpinetscan-swatch[data-state="up"]           { background: var(--ns-up);       color: #fff; }
+.glpinetscan-portmap[data-mode="status"] .glpinetscan-port[data-state="down"],
+.glpinetscan-swatch[data-state="down"]         { background: var(--ns-down);     color: #fff; }
+.glpinetscan-portmap[data-mode="status"] .glpinetscan-port[data-state="disabled"],
+.glpinetscan-swatch[data-state="disabled"]     { background: var(--ns-disabled); color: #fff; }
+.glpinetscan-portmap[data-mode="status"] .glpinetscan-port[data-state="dormant"],
+.glpinetscan-portmap[data-mode="status"] .glpinetscan-port[data-state="testing"],
+.glpinetscan-swatch[data-state="dormant"]      { background: var(--ns-dormant);  color: #fff; }
+
+/* Unknown is drawn as absence rather than as a colour: an inventory
+ * source that does not report ifOperStatus should leave a blank on the
+ * diagram, not a state the device never claimed. */
+.glpinetscan-portmap[data-mode="status"] .glpinetscan-port[data-state="unknown"],
+.glpinetscan-swatch[data-state="unknown"]      { border-style: dashed; }
+
+/* --- VLAN --------------------------------------------------------- */
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port-sub[data-for="vlan"] { display: block; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="none"],
+.glpinetscan-swatch[data-vlan="none"]          { border-style: dashed; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="0"],
+.glpinetscan-swatch[data-vlan="0"] { background: var(--ns-vlan-0); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="1"],
+.glpinetscan-swatch[data-vlan="1"] { background: var(--ns-vlan-1); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="2"],
+.glpinetscan-swatch[data-vlan="2"] { background: var(--ns-vlan-2); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="3"],
+.glpinetscan-swatch[data-vlan="3"] { background: var(--ns-vlan-3); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="4"],
+.glpinetscan-swatch[data-vlan="4"] { background: var(--ns-vlan-4); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="5"],
+.glpinetscan-swatch[data-vlan="5"] { background: var(--ns-vlan-5); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="6"],
+.glpinetscan-swatch[data-vlan="6"] { background: var(--ns-vlan-6); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="7"],
+.glpinetscan-swatch[data-vlan="7"] { background: var(--ns-vlan-7); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="8"],
+.glpinetscan-swatch[data-vlan="8"] { background: var(--ns-vlan-8); color: #fff; }
+.glpinetscan-portmap[data-mode="vlan"] .glpinetscan-port[data-vlan="9"],
+.glpinetscan-swatch[data-vlan="9"] { background: var(--ns-vlan-9); color: #fff; }
+
+/* --- speed -------------------------------------------------------- */
+.glpinetscan-portmap[data-mode="speed"] .glpinetscan-port-sub[data-for="speed"] { display: block; }
+.glpinetscan-portmap[data-mode="speed"] .glpinetscan-port[data-band="10g"],
+.glpinetscan-swatch[data-band="10g"]  { background: var(--ns-vlan-6); color: #fff; }
+.glpinetscan-portmap[data-mode="speed"] .glpinetscan-port[data-band="1g"],
+.glpinetscan-swatch[data-band="1g"]   { background: var(--ns-vlan-0); color: #fff; }
+.glpinetscan-portmap[data-mode="speed"] .glpinetscan-port[data-band="100m"],
+.glpinetscan-swatch[data-band="100m"] { background: var(--ns-vlan-4); color: #fff; }
+.glpinetscan-portmap[data-mode="speed"] .glpinetscan-port[data-band="10m"],
+.glpinetscan-swatch[data-band="10m"]  { background: var(--ns-down);   color: #fff; }
+.glpinetscan-portmap[data-mode="speed"] .glpinetscan-port[data-band="none"],
+.glpinetscan-swatch[data-band="none"] { border-style: dashed; }
+
+/* --- neighbour ---------------------------------------------------- */
+.glpinetscan-portmap[data-mode="link"] .glpinetscan-port[data-link="1"],
+.glpinetscan-swatch[data-link="1"] { background: var(--ns-vlan-0); color: #fff; }
+.glpinetscan-portmap[data-mode="link"] .glpinetscan-port[data-link="0"],
+.glpinetscan-swatch[data-link="0"] { border-style: dashed; }
+
+/* --- legend ------------------------------------------------------- */
+.glpinetscan-legend { display: none; flex-wrap: wrap; gap: .75rem; }
+.glpinetscan-portmap[data-mode="status"] .glpinetscan-legend[data-legend="status"],
+.glpinetscan-portmap[data-mode="vlan"]   .glpinetscan-legend[data-legend="vlan"],
+.glpinetscan-portmap[data-mode="speed"]  .glpinetscan-legend[data-legend="speed"],
+.glpinetscan-portmap[data-mode="link"]   .glpinetscan-legend[data-legend="link"] { display: flex; }
+
+.glpinetscan-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .8rem;
+}
+
+.glpinetscan-swatch {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid var(--ns-edge);
+    border-radius: 3px;
+}
+.glpinetscan-swatch[data-trunk="1"] { border-top: 3px solid var(--tblr-body-color); }
+
+/* --- detail panel ------------------------------------------------- */
+.glpinetscan-detail {
+    border: 1px solid var(--ns-edge);
+    border-radius: var(--tblr-border-radius, 4px);
+    padding: .75rem;
+}
+
+.glpinetscan-refreshing { opacity: .6; }
+
+/* Below a phone's width the faceplate scrolls sideways inside its own
+ * box rather than widening the page; the module label and the legend
+ * stay put so it is still clear what is being scrolled. */
+@media (max-width: 576px) {
+    .glpinetscan-port { width: 2.2rem; height: 2.2rem; font-size: .7rem; }
+}

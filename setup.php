@@ -20,6 +20,7 @@
 use Glpi\Http\Firewall;
 use Glpi\Http\SessionManager;
 use GlpiPlugin\Glpinetscan\Menu;
+use GlpiPlugin\Glpinetscan\PortMapTab;
 use GlpiPlugin\Glpinetscan\PowerTab;
 use GlpiPlugin\Glpinetscan\ControlTab;
 use GlpiPlugin\Glpinetscan\TrapTab;
@@ -31,7 +32,7 @@ use GlpiPlugin\Glpinetscan\Target;
 use GlpiPlugin\Glpinetscan\WarrantyTab;
 use Glpi\Plugin\Hooks;
 
-define('PLUGIN_GLPINETSCAN_VERSION', '0.8.0');
+define('PLUGIN_GLPINETSCAN_VERSION', '0.9.0');
 define('PLUGIN_GLPINETSCAN_MIN_GLPI', '11.0');
 define('PLUGIN_GLPINETSCAN_CONFIG_CONTEXT', 'plugin:glpinetscan');
 
@@ -77,6 +78,14 @@ function plugin_init_glpinetscan()
     // Shown only on devices the scanner recorded wireless state for; see
     // WirelessTab::getTabNameForItem.
     Plugin::registerClass(WirelessTab::class, ['addtabon' => ['NetworkEquipment']]);
+    // The faceplate. NetworkEquipment only: every other itemtype that can hold
+    // ports holds one or two of them, and a picture of two ports is a worse
+    // table. Not gated on the asset having been scanned by this plugin —
+    // everything it draws is core's own port data, so it works on a switch
+    // some other agent inventoried; it only omits the freshness line, which is
+    // the one fact that is genuinely ours. See PortMapTab::getTabNameForItem
+    // for the empty case.
+    Plugin::registerClass(PortMapTab::class, ['addtabon' => ['NetworkEquipment']]);
     // Only ever visible when device control is switched on and the user may use
     // it; see ControlTab::getTabNameForItem.
     Plugin::registerClass(ControlTab::class, ['addtabon' => ['NetworkEquipment', 'PDU', 'Printer']]);
@@ -134,6 +143,14 @@ function plugin_init_glpinetscan()
     // surfaces include tabs on core assets (PDU, NetworkEquipment,
     // Printer, Phone), which a per-page <style> cannot cover.
     $PLUGIN_HOOKS['add_css']['glpinetscan'] = 'css/netscan.css';
+
+    // Moves the "Port map" tab next to core's "Network ports" tab, which is
+    // the only way that ordering can be had: defineAllTabs() is final, adds
+    // plugin tabs strictly last, and offers no hook. Global for the same
+    // reason the stylesheet is — the tab bar it edits is core's, on a core
+    // asset form — and it returns immediately on every page that has no tab
+    // bar, which is most of them. See public/js/portmap.js.
+    $PLUGIN_HOOKS['add_javascript']['glpinetscan'] = 'js/portmap.js';
 
     /**
      * SNMP findings, offered to glpi-ai's assistant as tools.
