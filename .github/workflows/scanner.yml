@@ -207,34 +207,38 @@ jobs:
 
           throw "msiexec exited $($p.ExitCode)"
 
-      # Kept whatever the outcome: the log is the only record of what the
-      # deferred custom action was actually handed, and it is 100× more useful
-      # to read whole than to re-run the job guessing at grep patterns.
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-install-log
-          path: install.log
-          if-no-files-found: ignore
-
       - name: Check what was installed
         run: |
           $root = "$env:ProgramFiles\GLPI Netscan"
           if (-not (Test-Path "$root\versions\$env:VERSION\glpi-netscan.exe")) { throw "versioned binary missing" }
           if (-not (Test-Path "$root\current\glpi-netscan.exe")) { throw "current junction missing or broken" }
 
-          $svc = Get-CimInstance Win32_Service -Filter "Name='GLPINetscan'"
-          if (-not $svc) { throw "service not registered" }
-          Write-Host "service path: $($svc.PathName)"
+          # sc.exe, not Get-CimInstance Win32_Service. The SCM finishes deleting
+          # a service only once the last handle to it is closed, and a WMI query
+          # leaves WmiPrvSE holding one — so asking WMI about the service here is
+          # enough to make the uninstall in the next step look like it failed.
+          # `sc` on its own is an alias for Set-Content, hence sc.exe.
+          function Field($text, $name) {
+            $m = @($text | Select-String -Pattern "^\s*$name\s*:\s*(.*)$")
+            if ($m.Count) { $m[0].Matches[0].Groups[1].Value.Trim() } else { "" }
+          }
+
+          $qc = & sc.exe qc GLPINetscan
+          if ($LASTEXITCODE -ne 0) { $qc; throw "service not registered" }
+          $binPath   = Field $qc 'BINARY_PATH_NAME'
+          $startName = Field $qc 'SERVICE_START_NAME'
+          $state     = Field (& sc.exe query GLPINetscan) 'STATE'
+          Write-Host "service path:  $binPath"
+          Write-Host "service state: $state"
 
           # The bug this guards: ServiceInstall points at the versioned path, so
           # the SCM would keep launching the installed version however many
           # times the scanner updated itself.
-          if ($svc.PathName -notlike "*\current\glpi-netscan.exe*") {
-            throw "service points at '$($svc.PathName)' rather than the current junction; self-update would be inert"
+          if ($binPath -notlike "*\current\glpi-netscan.exe*") {
+            throw "service points at '$binPath' rather than the current junction; self-update would be inert"
           }
-          if ($svc.StartName -ne "NT AUTHORITY\LocalService") { throw "service runs as $($svc.StartName), expected LocalService" }
-          if ($svc.State -ne "Stopped") { throw "service was started without credentials (state $($svc.State))" }
+          if ($startName -ne "NT AUTHORITY\LocalService") { throw "service runs as $startName, expected LocalService" }
+          if ($state -notlike "*STOPPED*") { throw "service was started without credentials (state $state)" }
 
           # The versioned directory must be named exactly what the binary
           # reports, or the updater will try to 'update' to what is running.
@@ -243,9 +247,53 @@ jobs:
 
       - name: Uninstall
         run: |
-          Start-Process msiexec -ArgumentList "/x `"$env:MSI`" /qn" -Wait
-          if (Get-Service GLPINetscan -ErrorAction SilentlyContinue) { throw "service survived uninstall" }
+          $p = Start-Process msiexec -ArgumentList "/x `"$env:MSI`" /qn /l*v uninstall.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path uninstall.log) {
+              Write-Host "::group::uninstall.log — the lines that say why"
+              Get-Content uninstall.log | Select-String -Pattern @(
+                'returned actual error'
+                'Return value 3'
+                'Note: 1: 1708'
+                'Installation success or error status'
+                'Product: .* -- (Removal|Installation)'
+                'MainEngineThread is returning'
+              ) | ForEach-Object { $_.Line }
+              Write-Host "::endgroup::"
+            }
+            throw "msiexec /x exited $($p.ExitCode)"
+          }
+
+          # DeleteServices marks the service for deletion; the SCM removes it when
+          # the last handle to it closes, which can be a moment after msiexec has
+          # returned. Poll for it to go rather than assume either way, and print
+          # what the SCM still thinks if it never does — a service that is really
+          # stuck is stuck until a reboot, so 30s is generous, not a race.
+          $deadline = (Get-Date).AddSeconds(30)
+          while ($true) {
+            & sc.exe query GLPINetscan *> $null
+            if ($LASTEXITCODE -ne 0) { break }
+            if ((Get-Date) -ge $deadline) {
+              & sc.exe queryex GLPINetscan
+              throw "service survived uninstall"
+            }
+            Start-Sleep -Milliseconds 500
+          }
+
           if (Test-Path "$env:ProgramFiles\GLPI Netscan\current") { throw "junction survived uninstall" }
+
+      # Kept whatever the outcome, and last in the job so it catches the
+      # uninstall too: these logs are the only record of what the deferred
+      # custom actions were actually handed, and they are far more useful read
+      # whole than re-run guessing at grep patterns.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi-logs
+          path: |
+            install.log
+            uninstall.log
+          if-no-files-found: ignore
 
   # Only on a tag, and only once both platforms have agreed. Publishing a
   # package in GLPI asks for a URL, a SHA-256 and a size; attaching the
