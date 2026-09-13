@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the scanner for the platforms an MSP realistically deploys to.
+# Build the scanner for the platforms it realistically gets deployed to.
 #
 # Static, dependency-free binaries: the whole point of a Go scanner rather than
 # glpi-agent's Perl stack is that deploying to a remote site is copying one file.

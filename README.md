@@ -642,7 +642,7 @@ Infocom on. (`Unmanaged` is not in `$CFG_GLPI['infocom_types']`.)
 | Vendor | API | Credentials |
 |---|---|---|
 | Cisco | Support API SN2INFO v2 | OAuth2 client ID + secret, from apiconsole.cisco.com |
-| Juniper | Service Asset API v1.0 (`css-asset`) | API key + application id + customer source id |
+| Juniper | Service Asset API v1.0 (`css-asset`) | API key + application id + entity source id |
 | HPE | Support Entitlement (warrantyCheck) | OAuth2 client ID + secret, issued against a support agreement |
 | Fortinet | FortiCare Registration API v3 | A FortiCloud **IAM API user**, not a portal login |
 | Pure Storage | Pure1 REST API, support contracts | Pure1 application id + an RSA private key |
@@ -841,8 +841,8 @@ people actually hit — wrong URL, revoked key, untrusted certificate — surfac
 the terminal rather than silently at the next service start.
 
 Keys are **scoped to an entity**, and the entity a scanner enrolled into is where
-its discovered assets land, so an MSP issues one key per client site and
-everything files itself with no per-asset rules. Revoking a key stops new
+its discovered assets land, so you issue one key per site and everything files
+itself with no per-asset rules. Revoking a key stops new
 enrollments and leaves running scanners alone; revoked keys stay listed, because
 their enrolment counts are the record of what was installed with them.
 

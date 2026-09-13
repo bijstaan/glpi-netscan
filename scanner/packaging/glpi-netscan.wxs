@@ -181,23 +181,64 @@
                   Impersonate="no"
                   Return="check" />
 
+    <!--
+      The same work at uninstall, but reached through a property rather than
+      FileKey — and that difference is the whole point.
+
+      A type 18 custom action names a row in the File table, and msiexec
+      resolves it to that file's *installed* path when it writes the execution
+      script. During an uninstall the component is on its way out, the path does
+      not resolve, and the action fails to schedule at all: "Action ended:
+      MsiUninstall. Return value 3", with no "returned actual error" line
+      anywhere because nothing was ever launched. Return="ignore" does not save
+      it either — that only covers the exit code of an action that ran. The
+      whole uninstall then fails with 1603 and the service comes back with the
+      rollback.
+
+      A type 50 action takes its executable from a property instead, which is
+      just a string: nothing to resolve against component state. The path is
+      built by SetUninstallExe below, from the same $(var.FullVersion) that
+      named the directory, so the two cannot drift.
+    -->
+    <CustomAction Id="SetUninstallExe"
+                  Property="UninstallExe"
+                  Value="[INSTALLFOLDER]versions\$(var.FullVersion)\glpi-netscan.exe" />
+
     <CustomAction Id="MsiUninstall"
-                  FileKey="scanner.exe"
+                  Property="UninstallExe"
                   ExeCommand="msi-uninstall --install-root &quot;[INSTALLFOLDER].&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
 
+    <!--
+      Explicit sequence numbers, not Before=/After= anchors.
+
+      wixl resolves an anchor to "one past the last standard action it has
+      already placed below the target", and which actions it has placed by then
+      depends on the order it happens to walk the custom actions — so adding a
+      fourth one silently moved MsiUninstall from 2001 to 1402, in front of
+      InstallInitialize, where a deferred action cannot be scheduled at all.
+      Numbers are the only way to say this unambiguously, and build-msi.sh
+      asserts every one of them.
+
+        1402  SetNoUpdates     after CostFinalize, so [] references expand;
+        1403  SetUninstallExe  before InstallInitialize, so both properties are
+                               set before anything deferred is written to the
+                               execution script
+        2001  MsiUninstall     after DeleteServices (2000), before RemoveFiles
+                               (3500) — the service is gone, the binary that
+                               removes the junction is still on disk
+        5801  MsiInstall       after InstallServices (5800), before
+                               StartServices (5900) — the service exists, so its
+                               binary path and failure actions can be corrected
+                               before anything tries to start it
+    -->
     <InstallExecuteSequence>
-      <Custom Action="SetNoUpdates" Before="InstallInitialize">NOUPDATES = "1"</Custom>
-
-      <!-- After InstallServices: the service must exist before its binary path
-           and failure actions can be corrected. -->
-      <Custom Action="MsiInstall" After="InstallServices">NOT REMOVE</Custom>
-
-      <!-- Before RemoveFiles, while the binary that does the work is still on
-           disk. -->
-      <Custom Action="MsiUninstall" Before="RemoveFiles">REMOVE="ALL"</Custom>
+      <Custom Action="SetNoUpdates" Sequence="1402">NOUPDATES = "1"</Custom>
+      <Custom Action="SetUninstallExe" Sequence="1403">REMOVE="ALL"</Custom>
+      <Custom Action="MsiUninstall" Sequence="2001">REMOVE="ALL"</Custom>
+      <Custom Action="MsiInstall" Sequence="5801">NOT REMOVE</Custom>
     </InstallExecuteSequence>
 
     <Feature Id="Main" Title="GLPI Netscan Scanner" Level="1">

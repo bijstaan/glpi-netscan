@@ -191,7 +191,8 @@ jobs:
           $lines | Select-String -Pattern @(
             'returned actual error'
             'Return value 3'
-            'Note: 1: 1708'
+            'Note: 1: 17(08|2[0-9])'
+            'Executing op: CustomActionSchedule'
             'Installation success or error status'
             'Product: .* -- Installation'
             'MainEngineThread is returning'
@@ -254,7 +255,8 @@ jobs:
               Get-Content uninstall.log | Select-String -Pattern @(
                 'returned actual error'
                 'Return value 3'
-                'Note: 1: 1708'
+                'Note: 1: 17(08|2[0-9])'
+                'Executing op: CustomActionSchedule'
                 'Installation success or error status'
                 'Product: .* -- (Removal|Installation)'
                 'MainEngineThread is returning'

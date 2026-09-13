@@ -127,6 +127,41 @@ table CustomAction \
   | awk -F'\t' '$4 ~ /\[INSTALLFOLDER\]"/ {bad=1} END{exit bad}' \
   || fail "a custom action quotes [INSTALLFOLDER] directly; write \"[INSTALLFOLDER].\" so the trailing backslash cannot escape the closing quote"
 
+# 3186 = deferred (1024) + no-impersonate (2048) + continue (64) + run an EXE
+# named by a property (50). NOT 18: a type 18 action names a File table row and
+# msiexec resolves it to that file's installed path when it writes the script,
+# which during an uninstall is a path the component no longer has. The action
+# then fails to schedule at all — "Return value 3", nothing launched, 1603 —
+# and Return="ignore" does not cover it, because there is no exit code to
+# ignore. A property is just a string, so it resolves whatever the component is
+# doing.
+table CustomAction \
+  | awk -F'\t' '$1=="MsiUninstall" && $2==3186 {found=1} END{exit !found}' \
+  || fail "MsiUninstall is not a deferred, non-impersonated property action; a FileKey action cannot be scheduled during uninstall"
+
+# And the property has to name the binary inside the directory this package
+# actually installs, or the uninstall action launches nothing. Built here as
+# a literal rather than an awk -v: awk reads escape sequences in a -v value,
+# and a version starting with a digit turns \0.0.0-ci into an octal escape.
+want_exe="[INSTALLFOLDER]versions\\${full_version}\\glpi-netscan.exe"
+table CustomAction | grep -qF "SetUninstallExe	51	UninstallExe	${want_exe}" \
+  || fail "SetUninstallExe does not point at ${want_exe}"
+
+# Where each custom action actually landed. wixl resolves Before=/After=
+# anchors against whatever it has placed so far, so these are pinned by number
+# in the .wxs — and a number is only worth pinning if something checks it.
+# MsiUninstall in front of InstallInitialize (1500) cannot be scheduled at all;
+# MsiInstall in front of InstallServices (5800) would configure a service that
+# does not exist yet.
+seq="$(msiinfo export "$out" InstallExecuteSequence | tr -d '\r')"
+want_seq() {
+  grep -q "^$1	.*	$2$" <<<"$seq" || fail "$1 is not sequenced at $2"
+}
+want_seq SetNoUpdates 1402
+want_seq SetUninstallExe 1403
+want_seq MsiUninstall 2001
+want_seq MsiInstall 5801
+
 grep -q "^Template: ${template}$" <<<"$(msiinfo suminfo "$out" | tr -d '\r')" || fail "summary template is not ${template}"
 
 if [[ -n "${SIGN_PFX:-}" ]]; then

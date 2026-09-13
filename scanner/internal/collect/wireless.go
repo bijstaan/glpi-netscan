@@ -15,7 +15,7 @@ import (
 // Wireless controllers and the access points behind them.
 //
 // The awkward fact about controller-based Wi-Fi is that the access points are
-// real, individually serial-numbered assets that an MSP replaces, moves and
+// real, individually serial-numbered assets that get replaced, moved and
 // bills for — and most of them cannot be scanned. A CAPWAP-tunnelled AP has no
 // reachable management address of its own; the controller is the only thing
 // that knows it exists. So scanning one address has to be able to produce many

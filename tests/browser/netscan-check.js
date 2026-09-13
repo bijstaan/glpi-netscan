@@ -532,7 +532,7 @@ const check = (n, c, d) => { console.log(`${c?'PASS':'FAIL'}  ${n}${d?' :: '+Str
   // --- wireless --------------------------------------------------------
   // One scanned address has to produce many assets. The access points behind a
   // controller do not answer SNMP at all — the controller is the only place
-  // they exist — but each is a serial-numbered box an MSP tracks and replaces.
+  // they exist — but each is a serial-numbered box somebody tracks and replaces.
   await p.goto(`${BASE}/front/networkequipment.php`, {waitUntil:'networkidle'});
   const gear = await p.evaluate(() => document.body.innerText);
   check('controller imported', /wlc-hq-01/.test(gear), '');
