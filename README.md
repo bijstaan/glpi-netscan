@@ -798,7 +798,7 @@ the two GLPI settings above.
 ### Scanner
 
 Linux and Windows, amd64 and arm64. One static binary either way — no runtime, no
-interpreter, no agent framework. There is no macOS build.
+interpreter, no agent framework.
 
 Go to *Setup → Network scanning*, pick the entity the scanner belongs to, name a
 key, and the page generates the command with the server and key filled in.

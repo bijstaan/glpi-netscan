@@ -162,17 +162,28 @@
 
       The value-taking options are passed unconditionally: an empty [CACERT] or
       [SCANNERNAME] expands to "" and the scanner treats that as unset.
+
+      The trailing period on [INSTALLFOLDER] is not a typo. Every MSI directory
+      property formats with a trailing backslash — "C:\Program Files\GLPI
+      Netscan\" — so quoting one directly produces `\"` at the end of the
+      argument, which Windows command-line parsing reads as an *escaped quote*.
+      The argument then never closes: the install-root option swallowed the
+      rest of the line, msi-install could not find its versioned directory, and
+      Return="check" turned that into a bare 1603 from msiexec. Appending a
+      period gives the quote a non-backslash to sit behind; the path still
+      resolves, and the Go side cleans the "\." away. build-msi.sh refuses to
+      produce a package whose CustomAction table quotes [INSTALLFOLDER] bare.
     -->
     <CustomAction Id="MsiInstall"
                   FileKey="scanner.exe"
-                  ExeCommand="msi-install --install-root &quot;[INSTALLFOLDER]&quot; --server &quot;[SERVER]&quot; --secret &quot;[ENROLLSECRET]&quot; --ca-cert &quot;[CACERT]&quot; --name &quot;[SCANNERNAME]&quot; [NoUpdatesFlag]"
+                  ExeCommand="msi-install --install-root &quot;[INSTALLFOLDER].&quot; --server &quot;[SERVER]&quot; --secret &quot;[ENROLLSECRET]&quot; --ca-cert &quot;[CACERT]&quot; --name &quot;[SCANNERNAME]&quot; [NoUpdatesFlag]"
                   Execute="deferred"
                   Impersonate="no"
                   Return="check" />
 
     <CustomAction Id="MsiUninstall"
                   FileKey="scanner.exe"
-                  ExeCommand="msi-uninstall --install-root &quot;[INSTALLFOLDER]&quot;"
+                  ExeCommand="msi-uninstall --install-root &quot;[INSTALLFOLDER].&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />

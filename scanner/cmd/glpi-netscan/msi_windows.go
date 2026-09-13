@@ -31,6 +31,17 @@ import (
 // install-windows.ps1 honest with each other, because both end up calling the
 // same code rather than two hand-written approximations of it.
 
+// installTree normalises what the MSI handed us.
+//
+// [INSTALLFOLDER] formats with a trailing backslash and the .wxs appends a
+// period to keep that backslash from escaping the closing quote, so the value
+// arrives as `C:\Program Files\...\.`. Clean removes both, and a value typed
+// by hand with or without a trailing separator lands on the same string — which
+// matters because this path is compared, joined and handed to sc.exe.
+func installTree(root string) string {
+	return filepath.Clean(root)
+}
+
 // msiInstall is `glpi-netscan msi-install`.
 func msiInstall(args []string) error {
 	fs := flag.NewFlagSet("msi-install", flag.ExitOnError)
@@ -44,7 +55,7 @@ func msiInstall(args []string) error {
 		return err
 	}
 
-	root := strings.TrimRight(*installRoot, `\`)
+	root := installTree(*installRoot)
 	confPath := config.DefaultPath()
 	stateDir := config.DefaultStateDir()
 
@@ -158,7 +169,7 @@ func msiUninstall(args []string) error {
 	// directory, and following it would delete the thing it names rather than
 	// the link. Windows removes a junction with the same call that removes an
 	// empty directory.
-	link := filepath.Join(strings.TrimRight(*installRoot, `\`), "current")
+	link := filepath.Join(installTree(*installRoot), "current")
 	if err := os.Remove(link); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove the current junction: %w", err)
 	}

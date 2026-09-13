@@ -118,6 +118,15 @@ table CustomAction \
   | awk -F'\t' '$1=="MsiInstall" && $2==3090 {found=1} END{exit !found}' \
   || fail "MsiInstall is not a deferred, non-impersonated file action"
 
+# A directory property formats with a trailing backslash, so a bare
+# "[INSTALLFOLDER]" ends the argument with \" — an escaped quote to Windows'
+# command-line parser, which then swallows the rest of the line into that one
+# argument. The .wxs appends a period to prevent it; this is the assertion that
+# stops it coming back. It cost a run of silent 1603s to find once.
+table CustomAction \
+  | awk -F'\t' '$4 ~ /\[INSTALLFOLDER\]"/ {bad=1} END{exit bad}' \
+  || fail "a custom action quotes [INSTALLFOLDER] directly; write \"[INSTALLFOLDER].\" so the trailing backslash cannot escape the closing quote"
+
 grep -q "^Template: ${template}$" <<<"$(msiinfo suminfo "$out" | tr -d '\r')" || fail "summary template is not ${template}"
 
 if [[ -n "${SIGN_PFX:-}" ]]; then

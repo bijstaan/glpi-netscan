@@ -1,6 +1,6 @@
 # Build the network scanner and its Windows installers.
 #
-# Three runners, doing three different jobs:
+# Two runners, doing two different jobs:
 #
 #   ubuntu-latest   the release. Static Go binaries for linux/amd64,
 #                   linux/arm64, windows/amd64 and windows/arm64, plus the two
@@ -13,14 +13,12 @@
 #                   path, that it runs as LocalService and stays stopped when
 #                   it has no server to talk to, and that the directory name
 #                   matches the version the binary reports.
-#   macos-latest    a portability guard, not a build. The scanner ships for
-#                   Linux and Windows only — it is placed on a server or a
-#                   small always-on box at a site, and Apple sells neither, so
-#                   build.sh deliberately has no darwin target. What this job
-#                   buys is the test suite under a second kernel and libc, and
-#                   an early, cheap signal when something starts assuming
-#                   /proc, netlink or a Linux-only syscall. It produces no
-#                   artifact and nothing downstream depends on it.
+#
+# The scanner runs on Linux and Windows, and on nothing else. It is placed on a
+# server or a small always-on box at a site; there is no darwin target in
+# build.sh, no macOS package, and no macOS runner here. (Detecting a Mac over
+# the wire is a different matter and is unaffected — the scanner identifies
+# whatever answers SNMP, including Apple hardware.)
 
 name: scanner
 
@@ -87,25 +85,6 @@ jobs:
           GOFLAGS: -buildvcs=false
         run: |
           test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt"; exit 1; }
-          go vet ./...
-          go build ./...
-          go test ./...
-
-  # See the header: no darwin artifact is produced or shipped. This is the
-  # suite under a second operating system.
-  portability:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: scanner/go.mod
-          cache-dependency-path: scanner/go.sum
-      - name: vet and test on darwin
-        working-directory: scanner
-        env:
-          GOFLAGS: -buildvcs=false
-        run: |
           go vet ./...
           go build ./...
           go test ./...
@@ -197,7 +176,46 @@ jobs:
       - name: Install
         run: |
           $p = Start-Process msiexec -ArgumentList "/i `"$env:MSI`" /qn /l*v install.log" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 80; throw "msiexec exited $($p.ExitCode)" }
+          if ($p.ExitCode -eq 0) { exit 0 }
+          if (-not (Test-Path install.log)) { throw "msiexec exited $($p.ExitCode) and wrote no log" }
+
+          $lines = Get-Content install.log
+
+          # `-Tail 80` on a verbose MSI log shows the property dump and nothing
+          # else — the dump is the last thing written and is longer than that.
+          # wixl also emits no Error table, so msiexec's own diagnosis degrades
+          # to an untranslated "Note: 1: 2262 2: Error". Neither says why. The
+          # lines that do are the custom-action return codes and the action
+          # that came back with 3, so name those explicitly.
+          Write-Host "::group::install.log — the lines that say why"
+          $lines | Select-String -Pattern @(
+            'returned actual error'
+            'Return value 3'
+            'Note: 1: 1708'
+            'Installation success or error status'
+            'Product: .* -- Installation'
+            'MainEngineThread is returning'
+          ) | ForEach-Object { $_.Line }
+          Write-Host "::endgroup::"
+
+          # And the run-up to it, stopping where the property dump begins.
+          Write-Host "::group::install.log — the 40 lines before the property dump"
+          $dump = $lines | Select-String -Pattern '^Property\(S\):' | Select-Object -First 1
+          $end = if ($dump) { $dump.LineNumber - 1 } else { $lines.Count }
+          if ($end -gt 0) { $lines[[Math]::Max(0, $end - 40)..($end - 1)] }
+          Write-Host "::endgroup::"
+
+          throw "msiexec exited $($p.ExitCode)"
+
+      # Kept whatever the outcome: the log is the only record of what the
+      # deferred custom action was actually handed, and it is 100× more useful
+      # to read whole than to re-run the job guessing at grep patterns.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-install-log
+          path: install.log
+          if-no-files-found: ignore
 
       - name: Check what was installed
         run: |
@@ -235,7 +253,7 @@ jobs:
   # without anyone re-deriving them by hand.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [version, linux, windows, portability]
+    needs: [version, linux, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write

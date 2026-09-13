@@ -11,8 +11,10 @@ LDFLAGS="-s -w -X github.com/bijstaan/glpi-netscan/internal/version.Version=$VER
 
 mkdir -p "$OUT"
 
-# Linux and Windows only. macOS is deliberately absent: a scanner is placed on
-# a server or a small always-on box at a site, and Apple sells neither.
+# Linux and Windows only, and deliberately so: a scanner is placed on a server
+# or a small always-on box at a site, and there is no target here for anything
+# else. What the scanner can *detect* on the wire is a separate question and is
+# not limited by this list.
 targets=(
   "linux/amd64"
   "linux/arm64"
