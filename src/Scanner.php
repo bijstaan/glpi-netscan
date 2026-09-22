@@ -155,10 +155,27 @@ final class Scanner extends CommonDBTM
         AgentLink::sync($this, $agentVersion);
     }
 
-    /** Remove the GLPI agent row alongside the scanner. */
+    /** Route what the new scanner imports into its entity. */
+    public function post_addItem()
+    {
+        EntityRule::sync($this->fields);
+        parent::post_addItem();
+    }
+
+    /** Keep the entity rule in step when the scanner moves entity. */
+    public function post_updateItem($history = true)
+    {
+        if (array_intersect(['entities_id', 'is_recursive', 'name'], $this->updates) !== []) {
+            EntityRule::sync($this->fields);
+        }
+        parent::post_updateItem($history);
+    }
+
+    /** Remove the GLPI agent row and the entity rule alongside the scanner. */
     public function post_purgeItem()
     {
         AgentLink::forget($this);
+        EntityRule::drop($this->getID());
         parent::post_purgeItem();
     }
 

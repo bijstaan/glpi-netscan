@@ -103,7 +103,11 @@ final class Ingest
         }
 
         // Entities are decided by the scanner's own entity, never by anything
-        // in the payload — the submission is data, not authority.
+        // in the payload — the submission is data, not authority. Core decides
+        // an imported asset's entity from the entity rules alone, so the
+        // scanner's entity reaches that decision through its tag: see
+        // EntityRule. The active entity set below only covers what core
+        // creates outside the main asset.
         $entities_id = (int) $scanner->fields['entities_id'];
 
         // Rewrite LLDP connections that GLPI could resolve into the MAC form
@@ -117,12 +121,18 @@ final class Ingest
         // mistake is still cheap to correct.
         $itemtype = self::itemtypeFor($payload, $content);
 
-        $object = json_decode(json_encode([
+        $document = [
             'deviceid' => $deviceId,
             'action'   => $action,
             'itemtype' => $itemtype,
             'content'  => $content,
-        ], JSON_THROW_ON_ERROR));
+        ];
+        $tag = EntityRule::tagFor($scanner->getID());
+        if ($tag !== null) {
+            $document['tag'] = $tag;
+        }
+
+        $object = json_decode(json_encode($document, JSON_THROW_ON_ERROR));
 
         $inventory = new Inventory();
         $inventory->setDiscovery($action === AbstractRequest::NETDISCOVERY_ACTION);

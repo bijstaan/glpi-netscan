@@ -4,6 +4,7 @@
  * Copyright (C) 2026 Bijstaan
  */
 
+use GlpiPlugin\Glpinetscan\EntityRule;
 use GlpiPlugin\Glpinetscan\OidProfile;
 use GlpiPlugin\Glpinetscan\Scanner;
 use GlpiPlugin\Glpinetscan\Secret;
@@ -500,6 +501,20 @@ function plugin_glpinetscan_install()
     Secret::ensureDefault();
     plugin_glpinetscan_default_columns();
 
+    // Scanners enrolled before this rule existed filed their devices in the
+    // default entity. This puts the routing in place for what they report
+    // from here on. Devices already imported into the wrong entity have to be
+    // moved by hand, because GLPI only moves an asset between entities when a
+    // transfer model is configured.
+    foreach (
+        $DB->request([
+            'FROM'  => Scanner::getTable(),
+            'WHERE' => ['is_deleted' => 0],
+        ]) as $scanner
+    ) {
+        EntityRule::sync($scanner);
+    }
+
     return true;
 }
 
@@ -616,6 +631,14 @@ function plugin_glpinetscan_uninstall()
 {
     /** @var DBmysql $DB */
     global $DB;
+
+    // The entity rules this plugin created, read before the scanners table
+    // goes. Left behind, they would route a tag nothing sends any more.
+    if ($DB->tableExists('glpi_plugin_glpinetscan_scanners')) {
+        foreach ($DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_glpinetscan_scanners']) as $row) {
+            EntityRule::drop((int) $row['id']);
+        }
+    }
 
     foreach (['secrets', 'scanners', 'targets', 'oidprofiles', 'runs', 'powerdevices', 'outlets', 'assetmap', 'packages', 'wifinetworks', 'accesspoints', 'seen', 'actions', 'traps', 'warranties'] as $suffix) {
         $table = "glpi_plugin_glpinetscan_$suffix";

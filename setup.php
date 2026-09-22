@@ -32,7 +32,7 @@ use GlpiPlugin\Glpinetscan\Target;
 use GlpiPlugin\Glpinetscan\WarrantyTab;
 use Glpi\Plugin\Hooks;
 
-define('PLUGIN_GLPINETSCAN_VERSION', '0.9.0');
+define('PLUGIN_GLPINETSCAN_VERSION', '0.9.1');
 define('PLUGIN_GLPINETSCAN_MIN_GLPI', '11.0');
 define('PLUGIN_GLPINETSCAN_CONFIG_CONTEXT', 'plugin:glpinetscan');
 
