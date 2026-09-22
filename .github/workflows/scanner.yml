@@ -284,6 +284,18 @@ jobs:
 
           if (Test-Path "$env:ProgramFiles\GLPI Netscan\current") { throw "junction survived uninstall" }
 
+          # Nothing below the assertions, and that is deliberate: every check in
+          # this step reports by throwing, so falling off the end *is* the pass.
+          # Saying so explicitly is what makes the pass stick. The runner
+          # appends `exit $LASTEXITCODE` to every pwsh step, and the last native
+          # command run here is the sc.exe query that proves the service is
+          # gone — which exits non-zero by definition. Inheriting that code
+          # failed the job with a bare "exit code 1" and no message at all,
+          # after an uninstall whose own log said "Removal completed
+          # successfully". A throw still beats this to the exit, so the step
+          # can only pass quietly or fail loudly.
+          exit 0
+
       # Kept whatever the outcome, and last in the job so it catches the
       # uninstall too: these logs are the only record of what the deferred
       # custom actions were actually handed, and they are far more useful read
