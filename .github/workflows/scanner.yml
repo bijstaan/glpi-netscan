@@ -89,6 +89,13 @@ jobs:
           go build ./...
           go test ./...
 
+          # The platform-specific files are the ones nothing else here
+          # compiles: this job runs on Linux, and a typo in a _windows.go or
+          # _darwin.go file would otherwise reach a release without ever being
+          # parsed. vet cross-compiles, so it costs a few seconds and covers
+          # every build tag the agent ships with.
+          for goos in windows darwin; do GOOS=$goos go vet ./...; done
+
   linux:
     needs: [version, test]
     runs-on: ubuntu-latest
