@@ -121,6 +121,17 @@ final class Ingest
         // mistake is still cheap to correct.
         $itemtype = self::itemtypeFor($payload, $content);
 
+        // An Unmanaged asset cannot take a port list. Core hands `network_ports`
+        // to Asset\NetworkPort::handlePorts(), which calls isStackedSwitch() on
+        // the main asset, and only MainAsset\NetworkEquipment has that method
+        // (GLPI 11.0.8). The result is a fatal Error, not an inventory error.
+        // Unmanaged builds its own management port from `network_device` ips
+        // and mac, so dropping the list loses nothing it could have stored.
+        // The target check above has already read the port addresses.
+        if ($itemtype === 'Unmanaged') {
+            unset($content['network_ports']);
+        }
+
         $document = [
             'deviceid' => $deviceId,
             'action'   => $action,
@@ -152,6 +163,19 @@ final class Ingest
 
         try {
             $inventory->doInventory();
+        } catch (\Throwable $e) {
+            // GLPI 11.0.8's MainAsset\Printer::handleMetrics() writes the page
+            // counters against the printer's id without checking that an import
+            // rule let the printer in. When one refused it, there is no id and
+            // core fails, which hides the refusal. Without counters the
+            // refusal is recorded normally and whyNothingCreated() can name the
+            // rule. A printer that is let in keeps its counters, because this
+            // only runs after a failure.
+            if ($itemtype === 'Printer' && isset($payload['content']['pagecounters'])) {
+                unset($payload['content']['pagecounters']);
+                return self::submit($scanner, $payload, $target);
+            }
+            throw $e;
         } finally {
             if ($previous === null) {
                 unset($_SESSION['glpiactive_entity']);
@@ -188,7 +212,7 @@ final class Ingest
         if ($items_id === null && $action === AbstractRequest::NETINV_ACTION) {
             return [
                 'ok'       => false,
-                'errors'   => [self::whyNothingCreated($inventory)],
+                'errors'   => [self::whyNothingCreated($inventory, $itemtype)],
                 'itemtype' => null,
                 'items_id' => null,
             ];
@@ -293,7 +317,7 @@ final class Ingest
      * problems an operator can fix, and neither is discoverable from
      * "produced no asset".
      */
-    private static function whyNothingCreated(Inventory $inventory): string
+    private static function whyNothingCreated(Inventory $inventory, string $itemtype): string
     {
         if (!self::nativeInventoryEnabled()) {
             return 'GLPI native inventory is disabled '
@@ -301,17 +325,27 @@ final class Ingest
                 . 'the payload was accepted and discarded';
         }
 
-        // GLPI's import rules ship with "NetworkEquipment import (by mac)"
-        // *disabled*, so a device with no serial number falls through to
-        // "NetworkEquipment import denied" and is filed as refused equipment
+        // GLPI's import rules ship with "NetworkEquipment import (by mac)" and
+        // "Printer import (by mac)" *disabled* (resources/Rules/
+        // RuleImportAsset.xml), so a device with no serial number
+        // falls through to "<type> import denied" and is filed as refused equipment
         // rather than imported. That is by far the most common reason a
         // perfectly good switch never appears.
         try {
             $refused = $inventory->getMainAsset()->getRefused();
             if (!empty($refused)) {
-                return 'refused by the asset import rules (see Administration > '
+                // Unmanaged has no serial or mac rules: it is imported by name.
+                if ($itemtype === 'Unmanaged') {
+                    return 'refused by the asset import rules (see Administration > '
+                        . 'Refused equipment). An unmanaged device is imported by '
+                        . 'name, so one that reports no sysName is refused';
+                }
+                return sprintf(
+                    'refused by the asset import rules (see Administration > '
                     . 'Refused equipment). A device with no serial number needs '
-                    . 'the "NetworkEquipment import (by mac)" rule enabled';
+                    . 'the "%s import (by mac)" rule enabled',
+                    $itemtype
+                );
             }
         } catch (\Throwable) {
             // No main asset to ask; fall through to the generic message.

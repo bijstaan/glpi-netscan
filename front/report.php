@@ -72,7 +72,20 @@ foreach ($ordered as $entry) {
     }
 
 
-    $outcome = Ingest::submit($scanner, $payload, $target);
+    // Contained per device. The whole batch arrives in one request, so an
+    // uncaught core Error (GLPI rolls its transaction back and rethrows) used
+    // to 500 every device in the batch, and the run came back empty.
+    try {
+        $outcome = Ingest::submit($scanner, $payload, $target);
+    } catch (\Throwable $e) {
+        trigger_error('glpinetscan: ingest failed: ' . $e->getMessage(), E_USER_WARNING);
+        $outcome = [
+            'ok'       => false,
+            'errors'   => [sprintf('GLPI could not import this device: %s', $e->getMessage())],
+            'itemtype' => null,
+            'items_id' => null,
+        ];
+    }
     if ($outcome['ok']) {
         $accepted++;
     } else {
