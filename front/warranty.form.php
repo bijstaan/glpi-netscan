@@ -38,7 +38,7 @@ if (empty($_POST['check_now']) || $items_id <= 0) {
 $item = getItemForItemtype($itemtype);
 
 if (!$item instanceof CommonDBTM || !$item->getFromDB($items_id)) {
-    Html::displayNotFoundError();
+    throw new \Glpi\Exception\Http\NotFoundHttpException();
 }
 
 // The right that matters is the one on the asset, not a plugin right: spending
@@ -46,7 +46,7 @@ if (!$item instanceof CommonDBTM || !$item->getFromDB($items_id)) {
 // machine, and `can()` is where the entity restriction lives — canUpdateItem()
 // alone would let a read-only technician through.
 if (!$item->can($items_id, UPDATE)) {
-    Html::displayRightError();
+    throw new \Glpi\Exception\Http\AccessDeniedHttpException();
 }
 
 $result = Sync::runItem($itemtype, $items_id);

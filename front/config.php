@@ -169,7 +169,7 @@ echo "<span class='text-muted'>"
    . "</span>";
 echo "</div>";
 echo "<a class='btn btn-outline-primary' href='"
-   . Plugin::getWebDir('glpinetscan') . "/front/warranty.php'>"
+   . GlpiPlugin\Glpinetscan\Url::to('front/warranty.php') . "'>"
    . __s('Configure', 'glpinetscan') . "</a>";
 echo "</div></div>";
 

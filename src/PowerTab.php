@@ -22,7 +22,7 @@ use PDU;
  */
 final class PowerTab extends CommonGLPI
 {
-    public static $rightname = 'config';
+    public static string $rightname = 'config';
 
     public static function getTypeName($nb = 0)
     {

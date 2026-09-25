@@ -154,7 +154,7 @@ final class ControlTab extends CommonGLPI
             echo '<tr><td>' . $e($index) . '</td><td>' . $e($name) . '</td>';
             echo "<td colspan='2'>";
             echo "<form method='post' action='"
-                . \Plugin::getWebDir('glpinetscan') . "/front/control.form.php'"
+                . Url::to('front/control.form.php') . "'"
                 . " class='d-flex gap-2 align-items-center'>";
             echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
             echo Html::hidden('control_itemtype', ['value' => $itemtype]);

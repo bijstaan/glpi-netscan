@@ -285,6 +285,11 @@ final class PowerIngest
             return;
         }
 
+        if (!class_exists(Item_Plug::class)) {
+            self::storeOutletPlugs($pdus_id, $count);
+            return;
+        }
+
         $plugs_id = Dropdown::importExternal(Plug::class, 'Outlet (discovered)', 0);
         if (!is_int($plugs_id) || $plugs_id <= 0) {
             return;
@@ -295,6 +300,63 @@ final class PowerIngest
             ['number_plugs' => $count],
             ['plugs_id' => $plugs_id, 'itemtype' => PDU::class, 'items_id' => $pdus_id]
         );
+    }
+
+    /**
+     * GLPI 12 dropped Item_Plug: a plug is now one row per physical outlet,
+     * attached to its PDU through itemtype_main/items_id_main and numbered.
+     * Outlets 1..count are kept as dynamic rows and anything numbered above
+     * the count is removed, so a smaller replacement strip shrinks the list.
+     * Rows a person added by hand (is_dynamic = 0) are never touched.
+     */
+    private static function storeOutletPlugs(int $pdus_id, int $count): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $pdu = new PDU();
+        if (!$pdu->getFromDB($pdus_id)) {
+            return;
+        }
+
+        $existing = [];
+        foreach ($DB->request([
+            'SELECT' => ['id', 'number'],
+            'FROM'   => Plug::getTable(),
+            'WHERE'  => [
+                'itemtype_main' => PDU::class,
+                'items_id_main' => $pdus_id,
+                'is_dynamic'    => 1,
+            ],
+        ]) as $row) {
+            $existing[(int) $row['number']] = (int) $row['id'];
+        }
+
+        for ($number = 1; $number <= $count; $number++) {
+            if (isset($existing[$number])) {
+                continue;
+            }
+            $DB->insert(Plug::getTable(), [
+                'name'          => sprintf('Outlet %d', $number),
+                'number'        => $number,
+                'itemtype_main' => PDU::class,
+                'items_id_main' => $pdus_id,
+                'entities_id'   => (int) $pdu->fields['entities_id'],
+                'is_recursive'  => (int) ($pdu->fields['is_recursive'] ?? 0),
+                'is_dynamic'    => 1,
+                'date_creation' => $_SESSION['glpi_currenttime'] ?? date('Y-m-d H:i:s'),
+                'date_mod'      => $_SESSION['glpi_currenttime'] ?? date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        $stale = array_values(array_filter(
+            $existing,
+            static fn(int $id, int $number): bool => $number > $count,
+            ARRAY_FILTER_USE_BOTH
+        ));
+        if ($stale !== []) {
+            $DB->delete(Plug::getTable(), ['id' => $stale]);
+        }
     }
 
     /**

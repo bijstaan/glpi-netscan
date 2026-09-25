@@ -146,10 +146,36 @@ final class HttpTransport implements Transport
     private function client(): GuzzleClient
     {
         if ($this->client === null) {
-            $this->client = Toolbox::getGuzzleClient();
+            $this->client = method_exists(Toolbox::class, 'getGuzzleClient')
+                ? Toolbox::getGuzzleClient()
+                : new GuzzleClient(self::proxyOptions() + ['connect_timeout' => 5]);
         }
 
         return $this->client;
+    }
+
+    /**
+     * GLPI 12 removed Toolbox::getGuzzleClient(); this is what it added, so the
+     * instance's outbound proxy still applies. Guzzle itself still ships with
+     * core (league/oauth2-client depends on it).
+     *
+     * @return array{proxy?:string}
+     */
+    private static function proxyOptions(): array
+    {
+        global $CFG_GLPI;
+
+        if (empty($CFG_GLPI['proxy_name'])) {
+            return [];
+        }
+
+        $credentials = '';
+        if (!empty($CFG_GLPI['proxy_user'])) {
+            $credentials = rawurlencode((string) $CFG_GLPI['proxy_user']) . ':'
+                . rawurlencode((string) (new \GLPIKey())->decrypt((string) $CFG_GLPI['proxy_passwd'])) . '@';
+        }
+
+        return ['proxy' => 'http://' . $credentials . $CFG_GLPI['proxy_name'] . ':' . $CFG_GLPI['proxy_port']];
     }
 
     private static function userAgent(): string

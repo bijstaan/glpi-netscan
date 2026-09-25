@@ -47,7 +47,7 @@ class WarrantyTab extends CommonGLPI
      * date, and an administrator would have to grant a second right to undo
      * something nobody asked for.
      */
-    public static $rightname = 'infocom';
+    public static string $rightname = 'infocom';
 
     public static function getTypeName($nb = 0)
     {
@@ -263,7 +263,7 @@ class WarrantyTab extends CommonGLPI
             return;
         }
 
-        echo "<form method='post' action='" . Plugin::getWebDir('glpinetscan') . "/front/warranty.form.php'>";
+        echo "<form method='post' action='" . Url::to('front/warranty.form.php') . "'>";
         echo Html::hidden('itemtype', ['value' => $item->getType()]);
         echo Html::hidden('items_id', ['value' => (int) $item->getID()]);
         echo "<button type='submit' name='check_now' value='1' class='btn btn-primary'>"

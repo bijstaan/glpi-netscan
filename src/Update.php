@@ -310,7 +310,7 @@ final class Update
             $DB->request([
                 'SELECT'  => [
                     'agent_version',
-                    new \QueryExpression('COUNT(*) AS ' . $DB->quoteName('cpt')),
+                    new \Glpi\DBAL\QueryExpression('COUNT(*) AS ' . $DB->quoteName('cpt')),
                 ],
                 'FROM'    => Scanner::getTable(),
                 'WHERE'   => ['is_deleted' => 0],

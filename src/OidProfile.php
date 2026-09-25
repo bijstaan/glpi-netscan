@@ -29,9 +29,9 @@ use Session;
  */
 final class OidProfile extends CommonDBTM
 {
-    public static $rightname = 'config';
+    public static string $rightname = 'config';
 
-    public $dohistory = true;
+    public bool $dohistory = true;
 
     /** Where shipped packs live, relative to the plugin root. */
     private const PACK_DIR = '/data/profiles';

@@ -8,7 +8,7 @@ namespace GlpiPlugin\Glpinetscan;
 
 use DBmysql;
 use GLPIKey;
-use QueryExpression;
+use Glpi\DBAL\QueryExpression;
 
 /**
  * Enrollment secrets: the bootstrap credential a fresh scanner presents once,

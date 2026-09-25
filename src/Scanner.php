@@ -19,9 +19,9 @@ use DBmysql;
  */
 final class Scanner extends CommonDBTM
 {
-    public static $rightname = 'config';
+    public static string $rightname = 'config';
 
-    public $dohistory = true;
+    public bool $dohistory = true;
 
     public static function getTypeName($nb = 0)
     {

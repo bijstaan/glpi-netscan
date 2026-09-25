@@ -148,7 +148,7 @@ final class Traps
         global $DB;
 
         foreach ($DB->request([
-            'SELECT'  => ['address', new \QueryExpression('COUNT(*) AS ' . $DB->quoteName('cpt'))],
+            'SELECT'  => ['address', new \Glpi\DBAL\QueryExpression('COUNT(*) AS ' . $DB->quoteName('cpt'))],
             'FROM'    => self::TABLE,
             'GROUPBY' => ['address'],
             'HAVING'  => ['cpt' => ['>', self::KEEP_PER_DEVICE]],

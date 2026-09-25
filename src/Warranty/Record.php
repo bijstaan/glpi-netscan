@@ -203,7 +203,7 @@ final class Record
 
         foreach (
             $DB->request([
-                'SELECT' => ['status', new \QueryExpression('COUNT(*) AS ' . $DB->quoteName('cnt'))],
+                'SELECT' => ['status', new \Glpi\DBAL\QueryExpression('COUNT(*) AS ' . $DB->quoteName('cnt'))],
                 'FROM'   => self::TABLE,
                 'GROUPBY' => ['status'],
             ]) as $row

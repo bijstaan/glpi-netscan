@@ -84,7 +84,7 @@ final class PortMapTab extends CommonGLPI
         $id   = 'glpinetscan-portmap-' . $rand;
         $e    = static fn($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 
-        $endpoint = Plugin::getWebDir('glpinetscan') . '/ajax/portmap.php';
+        $endpoint = Url::to('ajax/portmap.php');
 
         echo "<div class='glpinetscan-surface glpinetscan-portmap' id='" . $e($id) . "'"
             . " data-mode='status'"
